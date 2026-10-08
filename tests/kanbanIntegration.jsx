@@ -61,7 +61,7 @@ export default function verifyKanbanIntegration() {
 
   const filtered = records.filter(app => (app.company + ' ' + (app.position || '')).toLowerCase().includes('wso2') && app.status === 'Applied')
   const sorted = sortByDeadline(filtered, 'latest')
-  const filteredBoard = renderToStaticMarkup(<MemoryRouter><KanbanBoard applications={sorted} today={now} /></MemoryRouter>)
+  const filteredBoard = renderToStaticMarkup(<MemoryRouter><ApplicationProvider><KanbanBoard applications={sorted} today={now} /></ApplicationProvider></MemoryRouter>)
   assert.equal((filteredBoard.match(/class="kanban-card"/g) || []).length, 2)
   assert.match(filteredBoard, /aria-label="2 applications"/)
   assert.equal((filteredBoard.match(/No applications/g) || []).length, 4)

@@ -73,7 +73,7 @@ Use List View / Board View on the Applications page. List View keeps the existin
 
 The separate interntrack_application_view key stores only list or board. With no saved preference, List View is selected. Reading or switching views never writes application records. If browser storage is blocked, view switching still works for the current session and a preference-save notice appears.
 
-Board columns scroll horizontally on desktop and mobile. Tab to the board region to scroll with the keyboard; the view buttons and card links use native keyboard behavior and visible focus states. Change statuses through Edit Application. This version has no drag-and-drop or additional dependencies.
+Board columns scroll horizontally on desktop and mobile. Tab to the board region to scroll with the keyboard; the view buttons and card links use native keyboard behavior and visible focus states. Change statuses through Edit Application, native drag-and-drop, or the keyboard/touch-friendly Move to select on each board card. No additional dependencies are used.
 
 Run all unit and React-rendering integration checks:
 
@@ -83,3 +83,20 @@ node tests/run-integration.mjs
 ```
 
 Kanban checks cover grouping/counts, shared search results, filtered/sorted board input, deadline/interview display, detail links, preference reloads, application-data isolation, status-update counts, and desktop/mobile scroll CSS. Tests use isolated storage and do not modify your browser data.
+
+## Drag-and-drop status changes
+
+Drag a board card into Saved, Applied, Interview, Offer, or Rejected. The dragged card becomes slightly transparent, and a different destination column uses the existing soft accent. Dropping updates status through ApplicationContext.updateApplication; deadline, interview, notes, and all other fields are preserved. Counts, List View, dashboard statistics, and saved data use the same Context state. Dropping into the existing column does not write data.
+
+Use the labeled Move to select on each card for keyboard or touch access. Successful moves are announced through a polite screen-reader status region. Native drag-and-drop support varies on touch devices; the select fallback provides the same update flow. Moving under an active status filter can hide the card when it no longer matches that filter.
+
+Run all checks:
+
+```powershell
+node --test tests/deadlines.test.js tests/interviews.test.js tests/viewPreference.test.js tests/kanbanMove.test.js
+node tests/run-integration.mjs
+npm run lint
+npm run build
+```
+
+Drag integration tests invoke the real card, board, drop, and fallback event handlers with simulated DataTransfer. They verify Context/service persistence by remounting the provider, requested transitions, same-column no-op, counts, List View synchronization, preserved metadata and unknown fields, rejected external drags, and feedback classes. These are isolated automated checks rather than browser pointer-gesture tests.

@@ -417,3 +417,13 @@ input:focus, select:focus, textarea:focus { outline-width: 2px; outline-offset: 
   .kanban-board { padding: 18px; gap: 12px; }
   .kanban-column { flex-basis: 260px; min-width: 260px; }
 }
+
+/* Native drag feedback and keyboard/touch fallback; existing board styles stay intact. */
+.kanban-card-link { display: block; }
+.kanban-card[draggable="true"] { cursor: grab; }
+.kanban-card.kanban-dragging { opacity: .5; cursor: grabbing; }
+.kanban-column.kanban-drop-target { border-color: var(--primary); background: var(--accent-soft); }
+.kanban-move-control { display: flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--muted); font-size: 11px; }
+.kanban-move-control select { flex: 1; min-width: 0; min-height: 34px; padding: 6px 8px; font-size: 12px; background: var(--card); cursor: pointer; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+@media (max-width: 640px) { .kanban-move-control select { min-height: 40px; font-size: 16px; } }
