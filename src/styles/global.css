@@ -287,3 +287,26 @@ textarea { resize: vertical; min-height: 120px; line-height: 1.6; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Deadline tracker extends the existing badge, card, and responsive system. */
+.field-hint { color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.6; }
+.application-deadline { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.deadline-badge { font-variant-numeric: tabular-nums; }
+.deadline-neutral { color: #475569; background: #F1F5F9; border-color: var(--border); }
+.deadline-urgent { color: #92400E; background: #FFFBEB; border-color: #FDE68A; }
+.deadline-expired { color: #B91C1C; background: #FEF2F2; border-color: #FEE2E2; }
+.detail-deadline { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.deadlines-panel { margin-top: 24px; }
+.deadline-item { display: grid; grid-template-columns: minmax(0, 1fr) 130px 130px; align-items: center; gap: 20px; padding: 21px 24px; border-bottom: 1px solid var(--border); transition: background .16s; }
+.deadline-item:last-child { border-bottom: 0; }
+.deadline-item:hover { background: var(--page); }
+.deadline-item:hover strong { color: var(--primary); }
+.deadline-opportunity { min-width: 0; overflow-wrap: anywhere; }
+.deadline-opportunity strong { display: block; font-size: 13px; font-weight: 600; }
+.deadline-opportunity > span { display: block; font-size: 12px; line-height: 1.6; color: var(--muted); margin-top: 5px; }
+.deadline-date { font-size: 12px; color: #475569; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .deadline-item { grid-template-columns: minmax(0, 1fr) auto; padding: 20px 18px; gap: 12px; }
+  .deadline-opportunity { grid-column: 1 / -1; }
+  .deadline-item .deadline-badge { justify-self: end; }
+}
