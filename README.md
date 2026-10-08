@@ -66,3 +66,20 @@ npm run build
 ```
 
 These tests use isolated storage and React server rendering. No test accesses or resets your browser's saved applications.
+
+## Applications Board View
+
+Use List View / Board View on the Applications page. List View keeps the existing application rows; Board View groups the same searched, filtered, and deadline-sorted results into Saved, Applied, Interview, Offer, and Rejected columns. Column counts reflect the visible results. Cards link to Application Details and show available deadlines and upcoming interviews, including legacy interview dates.
+
+The separate interntrack_application_view key stores only list or board. With no saved preference, List View is selected. Reading or switching views never writes application records. If browser storage is blocked, view switching still works for the current session and a preference-save notice appears.
+
+Board columns scroll horizontally on desktop and mobile. Tab to the board region to scroll with the keyboard; the view buttons and card links use native keyboard behavior and visible focus states. Change statuses through Edit Application. This version has no drag-and-drop or additional dependencies.
+
+Run all unit and React-rendering integration checks:
+
+```powershell
+node --test tests/deadlines.test.js tests/interviews.test.js tests/viewPreference.test.js
+node tests/run-integration.mjs
+```
+
+Kanban checks cover grouping/counts, shared search results, filtered/sorted board input, deadline/interview display, detail links, preference reloads, application-data isolation, status-update counts, and desktop/mobile scroll CSS. Tests use isolated storage and do not modify your browser data.
