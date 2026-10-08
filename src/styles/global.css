@@ -369,3 +369,20 @@ input:focus, select:focus, textarea:focus { outline-width: 2px; outline-offset: 
   .page-heading > .button { min-height: 44px; }
   .deadline-item { padding: 20px 18px; }
 }
+
+/* Interview Tracker reuses the existing form, panel, badge, and color system. */
+.interview-form-section { min-width: 0; margin: 0 30px 28px; padding: 22px 0 0; border: 0; border-top: 1px solid var(--border); }
+.interview-form-section legend { padding: 0 12px 0 0; font-size: 16px; font-weight: 600; color: var(--text); }
+.interview-form-section legend .field-hint { margin-left: 8px; }
+.interview-form-section > p { font-size: 12px; }
+.interview-form-section .form-grid { padding: 24px 0 0; }
+.application-interview { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.interview-details-panel { margin-top: 24px; }
+.interview-badge { font-variant-numeric: tabular-nums; }
+.interview-soon { color: var(--link); background: var(--accent-soft); border-color: var(--border); }
+.upcoming-interview-info > .interview-badge { display: inline-flex; font-size: 11px; margin-top: 10px; color: var(--link); }
+.upcoming-panel .interview-item { align-items: flex-start; }
+@media (max-width: 640px) {
+  .interview-form-section { margin: 0 18px 24px; }
+  .interview-form-section .form-grid { padding-top: 24px; }
+}

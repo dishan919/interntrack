@@ -45,3 +45,24 @@ node tests/run-integration.mjs
 ```
 
 The integration checks use React server rendering and isolated mock storage; they never read or modify your browser's application data.
+
+## Interview Tracker
+
+The optional Interview Details section in Add/Edit Application supports a date, time, HR/Technical/Final/Other stage, Online/On-site/Phone type, and notes. Online interviews show a meeting-link input; On-site interviews show a location input. Empty fields are hidden on the Details page.
+
+Upcoming Interviews shows the closest five future interviews in the existing dashboard panel. Application rows display a subtle indicator for upcoming interviews. Labels include Today, Tomorrow, In N days, and Past. Interviews never automatically change the application's status.
+
+Dates and times use your browser's local timezone. A scheduled interview becomes past after its time; a date-only interview remains upcoming through that calendar day. Indicators refresh each minute and when the window regains focus. Time-zone changes can therefore affect timed interviews.
+
+Older interviewDate values remain readable without storage migration. Editing an application keeps interviewDate synchronized with interview.date for compatibility. Clearing all interview fields removes the optional interview object. Existing records without a position receive an empty display default in memory; Add/Edit still requires a position.
+
+Run all regression checks:
+
+```powershell
+node --test tests/deadlines.test.js tests/interviews.test.js
+node tests/run-integration.mjs
+npm run lint
+npm run build
+```
+
+These tests use isolated storage and React server rendering. No test accesses or resets your browser's saved applications.
