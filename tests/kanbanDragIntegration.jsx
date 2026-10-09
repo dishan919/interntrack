@@ -11,7 +11,7 @@ import { KANBAN_DRAG_TYPE } from '../src/utils/kanbanUtils'
 
 export default function verifyKanbanDragIntegration() {
   const key = 'interntrack_applications'
-  const originalApp = { id: 'IFS', company: 'IFS', position: 'React Intern', status: 'Applied', deadline: '2026-10-20', interviewDate: '2026-10-15', interview: { date: '2026-10-15', time: '10:30', type: 'Online', stage: 'Technical Interview', meetingLink: 'https://meet.google.com/example', location: '', notes: 'Prepare React' }, location: 'Colombo', jobUrl: 'https://example.com', appliedDate: '2026-10-01', notes: 'Do not change these notes', createdAt: '2026-10-01T10:00:00Z', customField: 'Preserve even unknown fields' }
+  const originalApp = { id: 'IFS', company: 'IFS', position: 'React Intern', status: 'Applied', deadline: '2026-10-20', interviewDate: '2026-10-15', interview: { date: '2026-10-15', time: '10:30', type: 'Online', stage: 'Technical Interview', meetingLink: 'https://meet.google.com/example', location: '', notes: 'Prepare React' }, location: 'Colombo', jobUrl: 'https://example.com', appliedDate: '2026-10-01', notes: 'Do not change these notes', createdAt: '2026-10-01T10:00:00Z', customField: 'Preserve even unknown fields', skills: { required: ['React', 'Git'], matched: ['React'] } }
   const other = { ...originalApp, id: 'other', company: 'WSO2', status: 'Saved' }
   const initial = JSON.stringify([originalApp, other])
   const store = new Map([[key, initial]])
