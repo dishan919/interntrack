@@ -14,3 +14,19 @@ test('only required skills can be selected and deselected', () => { const skills
 test('malformed optional skills remain safe and percentage rounds', () => { assert.equal(getSkillMatch({ required: 'React', matched: null }).percentage, null); assert.equal(getSkillMatch({ required: ['React', null, 2, 'Git', 'AWS'], matched: ['React'] }).percentage, 33) })
 test('best matches are stable, limited, omit unavailable and include real zero matches', () => { const apps = [{ id: 'none' }, ...Array.from({ length: 6 }, (_, i) => ({ id: i, skills: { required: ['React'], matched: i === 0 ? [] : ['React'] } }))]; assert.deepEqual(getBestSkillMatches(apps).map(item => item.application.id), [1, 2, 3, 4, 5]); assert.equal(getBestSkillMatches(apps, 10).at(-1).match.percentage, 0) })
 test('search preserves company and position matching and adds case insensitive skills', () => { const app = { company: 'WSO2', position: 'Intern', skills: { required: ['TypeScript'] } }; for (const query of ['wso2', 'INTERN', 'typescript']) assert.equal(matchesApplicationSearch(app, query), true); assert.equal(matchesApplicationSearch(app, 'AWS'), false) })
+
+for (const query of ['React', 'react', 'REACT', ' React ', '\tReact\n']) {
+  test('required skill search normalizes query ' + JSON.stringify(query), () => {
+    const app = { company: 'WSO2', position: 'Intern', skills: { required: [' React '] } }
+    assert.equal(matchesApplicationSearch(app, query), true)
+    assert.equal(matchesApplicationSearch({ ...app, skills: undefined }, query), false)
+    assert.equal(matchesApplicationSearch({ ...app, skills: { required: ['Git'] } }, query), false)
+  })
+}
+test('search handles absent skills, unrelated skills, and padded existing fields', () => {
+  const app = { company: 'WSO2', position: 'Software Engineer Intern' }
+  for (const query of [' wSo2 ', ' ENGINEER ']) assert.equal(matchesApplicationSearch(app, query), true)
+  assert.equal(matchesApplicationSearch(app, 'React'), false)
+  assert.equal(matchesApplicationSearch({ ...app, skills: { required: ['React'] } }, 'Python'), false)
+  assert.equal(matchesApplicationSearch(app, '   '), true)
+})

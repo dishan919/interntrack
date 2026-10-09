@@ -39,5 +39,5 @@ export function getBestSkillMatches(applications, limit = 5) {
     .sort((a, b) => b.match.percentage - a.match.percentage).slice(0, limit)
 }
 export function matchesApplicationSearch(application, search) {
-  return [application.company, application.position, ...normalizeSkills(application.skills).required].join(' ').toLowerCase().includes(search.toLowerCase())
+  return [application.company, application.position, ...normalizeSkills(application.skills).required].join(' ').toLowerCase().includes(skillKey(search))
 }
