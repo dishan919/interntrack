@@ -1,15 +1,11 @@
 import { useState } from 'react'
 import { useApplications } from '../context/ApplicationContext'
+import { exportApplicationData } from '../utils/exportData'
 export default function Settings() {
   const { applications, clearApplications } = useApplications()
   const [message, setMessage] = useState('')
   function exportData() {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(applications, null, 2)], { type: 'application/json' }))
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'interntrack-backup.json'
-    link.click()
-    URL.revokeObjectURL(url)
+    exportApplicationData(applications)
     setMessage('Your application backup has been downloaded.')
   }
   function clear() {
