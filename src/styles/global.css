@@ -385,6 +385,8 @@ input:focus, select:focus, textarea:focus { outline-width: 2px; outline-offset: 
 .application-interview { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; font-size: 12px; line-height: 1.6; color: var(--muted); }
 .interview-details-panel { margin-top: 24px; }
 .documents-panel { margin-top: 24px; }
+.follow-up-panel { margin-top: 24px; }
+.follow-up-panel form > .notice { margin: 0 30px 22px; }
 .activity-panel { margin-top: 24px; }
 .activity-timeline { list-style: none; margin: 0; padding: 24px; }
 .activity-timeline li { position: relative; padding: 0 0 24px 22px; border-left: 1px solid var(--border); }

@@ -1,5 +1,7 @@
 import { DOCUMENTS, normalizeDocuments } from './documentUtils.js'
 import { emptyInterview, getApplicationInterview } from './interviewUtils.js'
+import { followUpsEqual, normalizeFollowUp } from './followUpUtils.js'
+import { formatDate } from './applications.js'
 
 export function getActivityHistory(activity) {
   return Array.isArray(activity) ? activity : []
@@ -19,6 +21,13 @@ export function applyApplicationUpdate(application, values) {
   const next = { ...application, ...values, id: application.id, createdAt: application.createdAt }
   let activity = getActivityHistory(application.activity)
   const createdAt = new Date().toISOString()
+  const beforeFollowUp = normalizeFollowUp(application.followUp)
+  const afterFollowUp = normalizeFollowUp(next.followUp)
+  if (!followUpsEqual(beforeFollowUp, afterFollowUp)) {
+    const type = !afterFollowUp.date ? 'follow_up_removed' : !beforeFollowUp.date ? 'follow_up_created' : !beforeFollowUp.completed && afterFollowUp.completed ? 'follow_up_completed' : 'follow_up_updated'
+    const message = type === 'follow_up_removed' ? 'Follow-up reminder removed' : type === 'follow_up_created' ? `Follow-up reminder scheduled for ${formatDate(afterFollowUp.date)}` : type === 'follow_up_completed' ? 'Follow-up marked as completed' : 'Follow-up reminder updated'
+    activity = addActivity(activity, type, message, createdAt)
+  }
   if (next.status !== application.status) {
     activity = addActivity(activity, 'status_changed', `Status changed from ${application.status} to ${next.status}`, createdAt)
   }
