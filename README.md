@@ -1,6 +1,6 @@
 # InternTrack
 
-A beginner-friendly React application for tracking internship and job applications. Uses Vite, JavaScript, React Router, Context API, CSS, and browser localStorage. There is no backend or authentication.
+A beginner-friendly React application for tracking internship and job applications. Uses Vite, JavaScript, React Router, Context API, CSS, and browser localStorage. An independent Express backend provides a health check only; there is no authentication.
 
 ## Run locally
 
@@ -13,7 +13,35 @@ Requires Node.js 22.12+ (or 20.19+) and npm.
 
 Run npm run lint for ESLint. Run npm run build for a production build. Run npm run preview to preview the built app locally.
 
-## Source structure
+## Backend foundation
+
+The frontend and backend run independently. Application persistence still uses browser localStorage; the frontend does not call the backend.
+
+In a separate terminal, from this repository folder:
+
+```powershell
+cd server
+npm install
+Copy-Item .env.example .env
+npm run dev
+```
+
+The backend requires Node.js 22.12+ and uses Node's built-in environment-file loading and watch mode. `npm start` runs without watch mode. `.env` is optional and ignored by Git; `PORT` defaults to `5000`.
+
+Backend URL: http://localhost:5000. GET http://localhost:5000/api/health returns HTTP 200 with `{"status":"ok","message":"InternTrack API is running"}`. Unknown routes return JSON with HTTP 404. CORS allows the default Vite origins http://localhost:5173 and http://127.0.0.1:5173; update the origin list in `server/src/app.js` if using another frontend port.
+
+Run backend checks with `npm test` from `server/`. Run all existing frontend checks from the repository folder:
+
+```powershell
+node --test tests/*.test.js
+node tests/run-integration.mjs
+npm run lint
+npm run build
+```
+
+The backend lives in `server/src/app.js`, `server/src/server.js`, and `server/src/routes/healthRoutes.js`. It has no database or application CRUD routes.
+
+## Frontend source structure
 
 - src/components/common: shared badges, cards, search, filters, empty states.
 - src/components/layout: sidebar, header, and route layout.

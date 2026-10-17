@@ -30,9 +30,27 @@ export default function verifyKanbanDragIntegration() {
     const data = new Map()
     return { target: { closest: () => null }, dataTransfer: { setData: (type, value) => data.set(type, value), getData: type => data.get(type) || '', effectAllowed: '', dropEffect: '' }, prevented: false, preventDefault() { this.prevented = true } }
   }
-  function assertPreserved(status) {
+  let expectedActivity = []
+  function assertPreserved(status, previousStatus) {
     const stored = JSON.parse(store.get(key))
-    assert.deepEqual(stored.find(app => app.id === 'IFS'), { ...originalApp, status })
+    const { activity, ...application } = stored.find(app => app.id === 'IFS')
+    assert.deepEqual(application, { ...originalApp, status })
+    // Status moves append timeline events while preserving all application metadata.
+    if (previousStatus !== status) {
+      assert.equal(activity.length, expectedActivity.length + 1)
+      assert.deepEqual(activity.slice(0, -1), expectedActivity)
+      const event = activity.at(-1)
+      assert.equal(event.type, 'status_changed')
+      assert.equal(event.message, `Status changed from ${previousStatus} to ${status}`)
+      assert.equal(typeof event.id, 'string')
+      assert.ok(event.id.length > 0)
+      assert.ok(!expectedActivity.some(item => item.id === event.id))
+      assert.ok(Number.isFinite(Date.parse(event.createdAt)))
+      expectedActivity = activity
+    } else {
+      assert.deepEqual(activity, expectedActivity)
+    }
+    assert.deepEqual(context.getApplication('IFS').activity, expectedActivity)
     assert.deepEqual(stored.find(app => app.id === 'other'), other)
   }
   const initialMarkup = mount()
@@ -57,7 +75,7 @@ export default function verifyKanbanDragIntegration() {
     assert.equal(context.getApplication('IFS').status, to)
     assert.equal(column(to).props.applications.filter(app => app.id === 'IFS').length, 1)
     if (from !== to) assert.equal(column(from).props.applications.filter(app => app.id === 'IFS').length, 0)
-    assertPreserved(to)
+    assertPreserved(to, from)
     return markup
   }
   dropTo('Applied', 'Interview')
@@ -76,7 +94,7 @@ export default function verifyKanbanDragIntegration() {
   assert.equal(select.props.value, 'Offer')
   select.props.onChange({ target: { value: 'Interview' } })
   mount()
-  assertPreserved('Interview')
+  assertPreserved('Interview', 'Offer')
   dropTo('Interview', 'Rejected')
   assert.equal(column('Rejected').props.applications.length, 1)
 
