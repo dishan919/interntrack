@@ -3,7 +3,8 @@ import fs from 'node:fs'
 import postcss from 'postcss'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import ApplicationProvider from '../src/context/ApplicationProvider'
+import ApplicationProvider, { reloadContext } from './contextHarness'
+import { installApi } from './apiMock'
 import { useApplications } from '../src/context/ApplicationContext'
 import KanbanBoard from '../src/components/applications/KanbanBoard'
 import KanbanCard from '../src/components/applications/KanbanCard'
@@ -14,7 +15,7 @@ import { STATUSES } from '../src/utils/applications'
 import { sortByDeadline } from '../src/utils/deadlineUtils'
 import { loadApplicationView, saveApplicationView } from '../src/services/viewPreferenceService'
 
-export default function verifyKanbanIntegration() {
+export default async function verifyKanbanIntegration() {
   const now = new Date(2026, 9, 15, 10)
   const records = [
     { id: 'legacy', company: 'WSO2', status: 'Saved' },
@@ -27,6 +28,8 @@ export default function verifyKanbanIntegration() {
   const original = JSON.stringify(records)
   const store = new Map([['interntrack_applications', original]])
   globalThis.localStorage = { getItem: key => store.get(key) ?? null, setItem: (key, value) => store.set(key, value) }
+  installApi(new Map(store))
+  await reloadContext()
   function page(query = '') { return renderToStaticMarkup(<MemoryRouter initialEntries={['/applications' + query]}><ApplicationProvider><Applications /></ApplicationProvider></MemoryRouter>) }
   const list = page()
   assert.match(list, /class="application-row"/)
@@ -91,7 +94,8 @@ export default function verifyKanbanIntegration() {
   let context
   function Capture() { context = useApplications(); return null }
   renderToStaticMarkup(<ApplicationProvider><Capture /></ApplicationProvider>)
-  context.updateApplication('applied', { status: 'Offer' })
+  await context.updateApplication('applied', { status: 'Offer' })
+  await reloadContext()
   const afterEdit = page()
   const columns = afterEdit.split('<section class="kanban-column"')
   assert.match(columns[2], /aria-label="1 applications"/)

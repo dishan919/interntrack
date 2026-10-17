@@ -1,7 +1,8 @@
 ﻿import assert from 'node:assert/strict'
 import test from 'node:test'
 import { emptyInterview, formatInterviewTime, getApplicationInterview, getInterviewStageLabel, getInterviewStatus, getUpcomingInterviews, hasInterviewDetails, isSafeMeetingLink, prepareInterviewValues, validateInterview } from '../src/utils/interviewUtils.js'
-import { loadApplications } from '../src/services/applicationService.js'
+import { getApplications } from '../src/services/applicationService.js'
+import { installApi } from './apiMock.js'
 const now = new Date(2026, 9, 15, 10, 0)
 
 test('interview labels and eligibility consider local dates and times', () => {
@@ -86,15 +87,15 @@ test('invalid dates, times, and unsafe meeting URLs are rejected', () => {
   }
 })
 
-test('minimal legacy data and richer interview data load without rewriting localStorage', () => {
+test('minimal legacy API records gain display defaults without writes and retain rich interviews', async () => {
   const data = [{ id: 'APP001', company: 'WSO2', status: 'Applied' }, { id: 'APP002', company: 'IFS', position: 'Intern', status: 'Applied', interview: { date: '2026-10-15', time: '10:30', type: 'Online', stage: 'Technical', meetingLink: 'https://meet.google.com/example' } }]
   const original = JSON.stringify(data)
-  let writes = 0
-  globalThis.localStorage = { getItem: () => original, setItem: () => { writes++ } }
-  const loaded = loadApplications()
-  assert.equal(loaded.error, '')
-  assert.equal(loaded.applications.length, 2)
-  assert.equal(loaded.applications[0].position, '')
-  assert.deepEqual(loaded.applications[1].interview, data[1].interview)
-  assert.equal(writes, 0)
+  const store = new Map([['interntrack_applications', original]])
+  const calls = installApi(store)
+  const loaded = await getApplications()
+  assert.equal(loaded.length, 2)
+  assert.equal(loaded[0].position, '')
+  assert.deepEqual(loaded[1].interview, data[1].interview)
+  assert.equal(store.get('interntrack_applications'), original)
+  assert.deepEqual(calls.map(call => call.method), ['GET'])
 })

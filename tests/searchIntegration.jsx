@@ -2,11 +2,12 @@ import assert from 'node:assert/strict'
 import { useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
-import ApplicationProvider from '../src/context/ApplicationProvider'
+import ApplicationProvider, { reloadContext } from './contextHarness'
+import { installApi } from './apiMock'
 import Applications from '../src/pages/Applications'
 import SearchBar from '../src/components/common/SearchBar'
 import FilterBar from '../src/components/common/FilterBar'
-export default function verifySearchIntegration() {
+export default async function verifySearchIntegration() {
   const records = [
     { id: 'early', company: 'Alpha', position: 'Frontend Intern', status: 'Applied', deadline: '2027-01-01', skills: { required: [' React '], matched: [] } },
     { id: 'late', company: 'Beta', position: 'Developer', status: 'Applied', deadline: '2027-01-03', skills: { required: ['React'], matched: ['React'] } },
@@ -17,6 +18,8 @@ export default function verifySearchIntegration() {
   const original = JSON.stringify(records)
   const store = new Map([['interntrack_applications', original]])
   globalThis.localStorage = { getItem: key => store.get(key) ?? null, setItem: (key, value) => store.set(key, value) }
+  installApi(new Map(store))
+  await reloadContext()
   function page(view, query, status = '', sort = 'default') {
     store.set('interntrack_application_view', view)
     // Invoke the actual search input, status selector and sort selector handlers.

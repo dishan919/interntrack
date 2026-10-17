@@ -5,16 +5,17 @@ import { getFollowUpStatus, normalizeFollowUp, updateFollowUp } from '../../util
 
 export default function FollowUpReminder({ application, today }) {
   const headingId = useId()
-  const { getApplication, updateApplication } = useApplications()
+  const { getApplication, updateApplication, pending } = useApplications()
   const reminder = normalizeFollowUp(application.followUp)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(reminder)
   const [error, setError] = useState('')
   const status = getFollowUpStatus(reminder, today)
-  function save(event) {
+  async function save(event) {
     event.preventDefault()
     if (!normalizeFollowUp(draft).date) { setError('Choose a valid follow-up date.'); return }
-    updateFollowUp(application.id, draft, getApplication, updateApplication)
+    const result = updateFollowUp(application.id, draft, getApplication, updateApplication)
+    if (result?.then && !await result) return
     setError('')
     setEditing(false)
   }
@@ -26,9 +27,9 @@ export default function FollowUpReminder({ application, today }) {
       {reminder.note && <div className="full-width"><dt>Note</dt><dd className="notes">{reminder.note}</dd></div>}
       <div><dt>Status</dt><dd><span className={'badge deadline-badge deadline-' + status.tone}><span />{status.label}</span></dd></div></dl>
       <div className="form-actions">
-        {!reminder.completed && <button className="button primary" onClick={() => updateFollowUp(application.id, { ...reminder, completed: true }, getApplication, updateApplication)}>Mark as Done</button>}
-        <button className="button secondary" onClick={edit}>Edit Reminder</button>
-        <button className="button danger" onClick={() => { updateFollowUp(application.id, null, getApplication, updateApplication); setDraft(normalizeFollowUp(null)) }}>Remove Reminder</button>
+        {!reminder.completed && <button disabled={pending} className="button primary" onClick={() => updateFollowUp(application.id, { ...reminder, completed: true }, getApplication, updateApplication)}>Mark as Done</button>}
+        <button disabled={pending} className="button secondary" onClick={edit}>Edit Reminder</button>
+        <button disabled={pending} className="button danger" onClick={() => { updateFollowUp(application.id, null, getApplication, updateApplication); setDraft(normalizeFollowUp(null)) }}>Remove Reminder</button>
       </div>
     </> : <form onSubmit={save}>
       <div className="form-grid">
@@ -38,8 +39,8 @@ export default function FollowUpReminder({ application, today }) {
       </div>
       {error && <div className="notice error" role="alert">{error}</div>}
       <div className="form-actions">
-        {editing && <button type="button" className="button secondary" onClick={() => setEditing(false)}>Cancel</button>}
-        <button className="button primary" type="submit">{reminder.date ? 'Update Reminder' : 'Save Reminder'}</button>
+        {editing && <button disabled={pending} type="button" className="button secondary" onClick={() => setEditing(false)}>Cancel</button>}
+        <button disabled={pending} className="button primary" type="submit">{reminder.date ? 'Update Reminder' : 'Save Reminder'}</button>
       </div>
     </form>}
   </section>

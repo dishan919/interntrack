@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { normalizeFollowUp, getFollowUpStatus, getUpcomingFollowUps, updateFollowUp } from '../src/utils/followUpUtils.js'
 import { applyApplicationUpdate } from '../src/utils/activityUtils.js'
-import { loadApplications, saveApplications } from '../src/services/applicationService.js'
+import { getApplications, createApplication as postApplication, updateApplication as putApplication } from '../src/services/applicationService.js'
+import { installApi } from './apiMock.js'
 
 const legacy = { id: 'one', company: 'IFS', status: 'Applied', createdAt: '2026-10-01T09:00:00Z' }
 const reminder = { date: '2026-10-15', note: 'Email HR', completed: false }
@@ -80,17 +81,20 @@ test('unchanged normalized values produce no activity or persistence update', ()
   assert.equal(writes, 1)
 })
 
-test('reminders and timeline persist through the existing application storage', () => {
-  const storage = new Map()
-  globalThis.localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) }
-  const next = applyApplicationUpdate(legacy, { followUp: reminder })
-  assert.equal(saveApplications([next, { ...legacy, id: 'two' }]), '')
-  const loaded = loadApplications()
-  assert.equal(loaded.error, '')
-  assert.deepEqual(loaded.applications[0].followUp, reminder)
-  assert.deepEqual(loaded.applications[0].activity, next.activity)
-  assert.equal(loaded.applications[1].followUp, undefined)
-  assert.deepEqual([...storage.keys()], ['interntrack_applications'])
+test('reminders and generated timeline events round-trip through REST without application browser writes', async () => {
+  installApi()
+  globalThis.localStorage = { getItem: () => { throw new Error('Unexpected browser read') }, setItem: () => { throw new Error('Unexpected browser write') } }
+  const next = applyApplicationUpdate({ ...legacy, position: 'Intern' }, { followUp: reminder })
+  const created = await postApplication(next)
+  await postApplication({ ...legacy, position: 'Intern' })
+  const loaded = await getApplications()
+  assert.deepEqual(loaded[0].followUp, reminder)
+  assert.deepEqual(loaded[0].activity, next.activity)
+  assert.equal(loaded[1].followUp, undefined)
+  await putApplication(created.id, applyApplicationUpdate(loaded[0], { followUp: null }))
+  const removed = (await getApplications())[0]
+  assert.equal(removed.followUp, null)
+  assert.equal(removed.activity.at(-1).type, 'follow_up_removed')
 })
 
 test('calendar arithmetic handles leap days, year boundaries and DST without elapsed-hour rounding', () => {

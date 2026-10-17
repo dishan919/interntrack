@@ -1,21 +1,21 @@
 # InternTrack
 
-A beginner-friendly React application for tracking internship and job applications. Uses Vite, JavaScript, React Router, Context API, CSS, and browser localStorage. An independent Express backend provides a health check and a MongoDB-backed Applications REST API; there is no authentication.
+A beginner-friendly React application for tracking internship and job applications. Uses Vite, JavaScript, React Router, Context API, CSS, and a MongoDB-backed Express REST API; there is no authentication.
 
 ## Run locally
 
 Requires Node.js 22.12+ (or 20.19+) and npm.
 
 1. Open a terminal in this folder.
-2. Run npm install.
-3. Run npm run dev.
+2. Run `npm install` and `Copy-Item .env.example .env`.
+3. Start the backend as described below, then run `npm run dev`.
 4. Open the local URL printed by Vite (usually http://localhost:5173).
 
 Run npm run lint for ESLint. Run npm run build for a production build. Run npm run preview to preview the built app locally.
 
 ## Backend foundation
 
-The frontend and backend run independently. Application persistence still uses browser localStorage; the frontend does not call the backend.
+The frontend and backend run independently. React components use ApplicationContext, which calls applicationService over HTTP. MongoDB is the application source of truth. Configure `VITE_API_URL=http://localhost:5000/api` in the frontend `.env` (restart Vite after changing it). Real `.env` files are ignored.
 
 In a separate terminal, from this repository folder:
 
@@ -59,7 +59,7 @@ Backend tests use development-only `mongodb-memory-server` to launch disposable 
 
 ### Applications REST API
 
-MongoDB is now used by the Express Applications API. Records survive backend restarts when using the same MongoDB database. The React frontend still uses localStorage in this step; no browser data is migrated or sent to MongoDB.
+MongoDB is now used by the Express Applications API. Records survive backend restarts when using the same MongoDB database. The React frontend uses this API for application persistence. Legacy browser records are imported only on an explicit Settings action.
 
 | Method | Endpoint | Success |
 | --- | --- | --- |
@@ -72,7 +72,7 @@ MongoDB is now used by the Express Applications API. Records survive backend res
 
 POST and PUT require non-empty string `company` and `position` values, which are trimmed. Status must be `Saved`, `Applied`, `Interview`, `Offer`, or `Rejected`; omitted status defaults to `Saved`. Invalid input returns JSON 400. Missing application IDs return JSON 404 with `Application not found`.
 
-PUT replaces all editable data: omitted optional fields are removed, and omitted status resets to `Saved`. MongoDB generates `_id`; API JSON exposes it as a string `id` and omits `_id` and `__v`. Client-supplied `id`, `_id`, and `__v` are ignored on POST and PUT. Malformed and nonexistent IDs return the same application-specific 404. No previous in-memory UUID records are migrated.
+PUT replaces all editable data: omitted optional fields are removed, and omitted status resets to `Saved`. MongoDB generates `_id`; API JSON exposes it as a string `id` and omits `_id` and `__v`. Client-supplied `id`, `_id`, and `__v` are ignored on POST and PUT. Malformed and nonexistent IDs return the same application-specific 404. Imported browser records receive MongoDB IDs and retain their old IDs only as import markers.
 
 The schema requires trimmed company/position strings and an allowed status. Optional JSON fields (including interviews, skills, documents, activity, follow-ups, created date, and other metadata) are retained using flexible schema fields without additional validation, date coercion, generated nested IDs, or generated timeline events. Only database identity is server-managed; `createdAt` remains optional editable metadata for Step 2 compatibility.
 
@@ -96,12 +96,16 @@ Invoke-RestMethod $base
 - src/components/applications: application rows and shared add/edit form.
 - src/pages: all eight pages.
 - src/context: application state and mutations.
-- src/services/applicationService.js: localStorage reads and writes.
+- src/services/applicationService.js: centralized fetch CRUD, safe HTTP/network errors, and explicit legacy import.
 - src/utils/applications.js: statuses, date formatting, counts, and sample data.
 - src/styles/global.css: responsive layout and styles.
 - src/App.jsx: routes; src/main.jsx: React entry point.
 
-Data is stored under interntrack_applications. Samples appear only when the key does not exist. An empty saved array stays empty after refresh. Mutations save immediately. Settings exports JSON backups and clears data after confirmation. Storage failures show a visible warning. No data is sent to a server.
+Applications load asynchronously from the API. The shared layout shows loading feedback before rendering data pages and a safe retry message on failure. Mutations serialize requests, merge edits with the latest server-confirmed record, and publish server responses to React state only after success. Failed add/edit/delete requests retain existing data; forms navigate only on success. PUT sends the complete merged record because the existing endpoint replaces optional fields. Nested and unknown metadata remain intact; the existing flexible Mongoose schema needs no changes.
+
+### Previous browser data
+
+No automatic startup merge or sample-data seeding occurs. In Settings, choose **Import browser records** once to preserve records from this browser's old `interntrack_applications` backup. Import requires valid company, position, and string ID values; fix missing required values in your backup before import. Each POST carries `legacyBrowserId`; retries fetch existing server IDs and skip completed records after a partial failure. A separate `interntrack_api_import_complete` marker stops further imports after success, including after database records are deleted. The original browser key is retained as a backup and never read for live application state or written by CRUD. Run the import in one tab at a time. View/theme preferences remain independent. Browser storage must be available to mark completion. Export/clear in Settings now operates on API data; clear deletes records individually and retains an accurate view if a later deletion fails.
 
 For production hosting, configure your server to serve index.html for unknown paths so direct links to React Router pages work.
 
@@ -111,7 +115,7 @@ Add or edit an application to set its optional Application Deadline. The Applica
 
 The dashboard shows the closest five deadlines due today or later. Expired deadlines never change application status. Use Deadline: Soonest or Deadline: Latest alongside search and status filters; records without valid deadlines appear last. Clearing a deadline removes its indicator.
 
-Existing records without deadlines continue to work. Missing optional legacy fields receive display defaults in memory; merely loading the app never rewrites existing localStorage data.
+Existing records without deadlines continue to work. Missing optional legacy fields receive display defaults in memory; merely loading the app never rewrites API records or the legacy browser backup.
 
 Run deadline regression checks:
 
@@ -120,7 +124,7 @@ node --test tests/deadlines.test.js
 node tests/run-integration.mjs
 ```
 
-The integration checks use React server rendering and isolated mock storage; they never read or modify your browser's application data.
+The integration checks use React server rendering and isolated mock REST records; they never read or modify your browser's application data.
 
 ## Interview Tracker
 
@@ -141,7 +145,7 @@ npm run lint
 npm run build
 ```
 
-These tests use isolated storage and React server rendering. No test accesses or resets your browser's saved applications.
+These tests use isolated REST doubles, a DOM-based Context harness and React server rendering. No test accesses or resets your browser's saved applications.
 
 ## Applications Board View
 
@@ -176,3 +180,21 @@ npm run build
 ```
 
 Drag integration tests invoke the real card, board, drop, and fallback event handlers with simulated DataTransfer. They verify Context/service persistence by remounting the provider, requested transitions, same-column no-op, counts, List View synchronization, preserved metadata and unknown fields, rejected external drags, and feedback classes. These are isolated automated checks rather than browser pointer-gesture tests.
+
+## Step 4 validation
+
+```powershell
+# Frontend folder
+npm test
+npm run test:integration
+npm run test:smoke
+npm run lint
+npm run build
+# Separate backend terminal
+cd server
+npm test
+```
+
+Frontend integration checks mount the real provider in jsdom to exercise asynchronous React effects, then retain the existing UI rendering/drag-handler assertions. Service tests cover safe HTTP/network/JSON failures and resumable explicit migration. Backend tests include frontend-service CRUD and nested metadata through a disposable real MongoDB database. No test reads your personal MongoDB database. The development smoke sequence can be run with the local commands above: create, refresh, edit, refresh, change board status, refresh, delete, refresh.
+
+`npm run test:smoke` drives the real React DOM in jsdom through create/refresh/edit/refresh/board-status/refresh/delete/refresh with the actual Express API and disposable MongoDB. It starts and stops all test resources automatically; it is not a real-browser pointer test.

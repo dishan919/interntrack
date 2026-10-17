@@ -167,3 +167,22 @@ test('DELETE returns empty 204, removes only the target, and subsequent reads/de
     assert.deepEqual(await missing.json(), { message: 'Application not found' })
   }
 })
+
+// The frontend service crosses the real Express/Mongoose boundary using a disposable database.
+test('frontend REST service preserves nested metadata through MongoDB and status refreshes', async () => {
+  const service = await import('../../src/services/applicationService.js')
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = (url, options) => originalFetch(url.replace('http://localhost:5000/api/applications', baseUrl), options)
+  try {
+    const data = { ...valid, status: 'Applied', deadline: '2026-10-25', interview: { date: '2026-10-20', time: '10:30', notes: 'Prepare React' }, skills: { required: ['React'], matched: ['React'] }, documents: { resume: true, custom: { keep: true } }, activity: [{ id: 'event', type: 'created', message: 'Created', createdAt: '2026-10-01T09:00:00Z' }], followUp: { date: '2026-10-22', completed: false, note: 'Email HR' }, createdAt: '2026-10-01T09:00:00Z', updatedAt: '2026-10-02T09:00:00Z', custom: { nested: [null, { keep: true }] } }
+    const created = await service.createApplication(data)
+    const saved = await service.updateApplication(created.id, { ...created, status: 'Interview' })
+    const reloaded = await service.getApplication(created.id)
+    assert.deepEqual(reloaded, saved)
+    for (const key of Object.keys(data).filter(key => key !== 'status')) assert.deepEqual(reloaded[key], data[key])
+    assert.equal(reloaded.status, 'Interview')
+    assert.equal((await service.getApplications()).length, 1)
+    await service.deleteApplication(created.id)
+    assert.deepEqual(await service.getApplications(), [])
+  } finally { globalThis.fetch = originalFetch }
+})

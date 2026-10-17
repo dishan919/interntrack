@@ -1,7 +1,8 @@
 ﻿import assert from 'node:assert/strict'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
-import ApplicationProvider from '../src/context/ApplicationProvider'
+import ApplicationProvider, { reloadContext } from './contextHarness'
+import { installApi } from './apiMock'
 import { useApplications } from '../src/context/ApplicationContext'
 import KanbanBoard from '../src/components/applications/KanbanBoard'
 import KanbanCard from '../src/components/applications/KanbanCard'
@@ -9,7 +10,7 @@ import KanbanColumn from '../src/components/applications/KanbanColumn'
 import Applications from '../src/pages/Applications'
 import { KANBAN_DRAG_TYPE } from '../src/utils/kanbanUtils'
 
-export default function verifyKanbanDragIntegration() {
+export default async function verifyKanbanDragIntegration() {
   const key = 'interntrack_applications'
   const originalApp = { id: 'IFS', company: 'IFS', position: 'React Intern', status: 'Applied', deadline: '2026-10-20', interviewDate: '2026-10-15', interview: { date: '2026-10-15', time: '10:30', type: 'Online', stage: 'Technical Interview', meetingLink: 'https://meet.google.com/example', location: '', notes: 'Prepare React' }, location: 'Colombo', jobUrl: 'https://example.com', appliedDate: '2026-10-01', notes: 'Do not change these notes', createdAt: '2026-10-01T10:00:00Z', customField: 'Preserve even unknown fields', skills: { required: ['React', 'Git'], matched: ['React'] } }
   const other = { ...originalApp, id: 'other', company: 'WSO2', status: 'Saved' }
@@ -17,6 +18,8 @@ export default function verifyKanbanDragIntegration() {
   const store = new Map([[key, initial]])
   let writes = 0
   globalThis.localStorage = { getItem: name => store.get(name) ?? null, setItem: (name, value) => { writes++; store.set(name, value) } }
+  installApi(store, key, () => { writes++ })
+  await reloadContext()
   let board, context
   // Capture the real Board event handlers during React rendering, without a browser.
   function BoardProbe() {
@@ -24,7 +27,7 @@ export default function verifyKanbanDragIntegration() {
     board = KanbanBoard({ applications: context.applications, today: new Date(2026, 9, 10) })
     return board
   }
-  function mount() { return renderToStaticMarkup(<MemoryRouter><ApplicationProvider><BoardProbe /></ApplicationProvider></MemoryRouter>) }
+  async function mount() { await reloadContext(); return renderToStaticMarkup(<MemoryRouter><ApplicationProvider><BoardProbe /></ApplicationProvider></MemoryRouter>) }
   function column(status) { return board.props.children[0].props.children.find(element => element.props.status === status) }
   function dragEvent() {
     const data = new Map()
@@ -53,14 +56,14 @@ export default function verifyKanbanDragIntegration() {
     assert.deepEqual(context.getApplication('IFS').activity, expectedActivity)
     assert.deepEqual(stored.find(app => app.id === 'other'), other)
   }
-  const initialMarkup = mount()
+  const initialMarkup = await mount()
   assert.equal(writes, 0)
   assert.equal(store.get(key), initial)
   assert.match(initialMarkup, /draggable="true"/)
   assert.match(initialMarkup, /Move to/)
   assert.match(initialMarkup, /aria-label="Move React Intern at IFS to status"/)
 
-  function dropTo(from, to) {
+  async function dropTo(from, to) {
     const source = column(from)
     const event = dragEvent()
     const card = KanbanCard({ application: context.getApplication('IFS'), today: new Date(2026, 9, 10), onDragStart: source.props.onDragStart, onDragEnd: source.props.onDragEnd, onMove: source.props.onMove })
@@ -70,21 +73,21 @@ export default function verifyKanbanDragIntegration() {
     column(to).props.onDragOver(event)
     assert.equal(event.prevented, true)
     assert.equal(event.dataTransfer.dropEffect, 'move')
-    column(to).props.onDrop(event)
-    const markup = mount() // A new provider load also verifies refresh persistence.
+    await column(to).props.onDrop(event)
+    const markup = await mount() // A new provider load also verifies refresh persistence.
     assert.equal(context.getApplication('IFS').status, to)
     assert.equal(column(to).props.applications.filter(app => app.id === 'IFS').length, 1)
     if (from !== to) assert.equal(column(from).props.applications.filter(app => app.id === 'IFS').length, 0)
     assertPreserved(to, from)
     return markup
   }
-  dropTo('Applied', 'Interview')
+  await dropTo('Applied', 'Interview')
   assert.equal(column('Applied').props.applications.length, 0)
   assert.equal(column('Interview').props.applications.length, 1)
   const noOpWrites = writes
-  dropTo('Interview', 'Interview')
+  await dropTo('Interview', 'Interview')
   assert.equal(writes, noOpWrites)
-  dropTo('Interview', 'Offer')
+  await dropTo('Interview', 'Offer')
   assert.equal(column('Offer').props.applications.length, 1)
 
   // Exercise the actual select fallback handler, then drag Interview -> Rejected.
@@ -92,10 +95,10 @@ export default function verifyKanbanDragIntegration() {
   const label = fallback.props.children[1]
   const select = label.props.children[1]
   assert.equal(select.props.value, 'Offer')
-  select.props.onChange({ target: { value: 'Interview' } })
-  mount()
+  await select.props.onChange({ target: { value: 'Interview' } })
+  await mount()
   assertPreserved('Interview', 'Offer')
-  dropTo('Interview', 'Rejected')
+  await dropTo('Interview', 'Rejected')
   assert.equal(column('Rejected').props.applications.length, 1)
 
   // List View reads the same updated Context record.

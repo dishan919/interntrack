@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DOCUMENTS, getDocumentProgress, normalizeDocuments, updateApplicationDocument } from '../src/utils/documentUtils.js'
-import { loadApplications, saveApplications } from '../src/services/applicationService.js'
+import { getApplications, updateApplication as putApplication } from '../src/services/applicationService.js'
+import { installApi } from './apiMock.js'
 
 test('legacy and malformed document data default to unchecked; only true means ready', () => {
   for (const value of [undefined, null, '', [], 12, false]) {
@@ -40,32 +41,25 @@ test('each checkbox updates current Context documents with only a documents patc
   assert.equal(updates.length, count)
 })
 
-test('legacy records are not rewritten; checklist changes persist and isolate applications', () => {
-  const key = 'interntrack_applications'
-  const original = JSON.stringify([
-    { id: 'one', company: 'IFS', status: 'Applied', notes: 'Keep this' },
-    { id: 'two', company: 'WSO2', status: 'Interview', documents: { transcript: true } },
-  ])
-  const storage = new Map([[key, original]])
-  let writes = 0
-  globalThis.localStorage = { getItem: name => storage.get(name) ?? null, setItem: (name, value) => { writes++; storage.set(name, value) } }
-  let { applications, error } = loadApplications()
-  assert.equal(error, '')
-  assert.equal(writes, 0)
-  assert.equal(storage.get(key), original)
-  assert.equal(getDocumentProgress(applications[0].documents), '0 of 4 ready')
+test('checklist patches survive API reloads, preserve unknown metadata, and isolate records', async () => {
+  const records = [{ id: 'one', company: 'IFS', position: 'Intern', status: 'Applied', notes: 'Keep this', documents: { custom: { keep: true } } }, { id: 'two', company: 'WSO2', position: 'Intern', status: 'Interview', documents: { transcript: true } }]
+  installApi(new Map([['interntrack_applications', JSON.stringify(records)]]))
+  let applications = await getApplications()
   const other = structuredClone(applications[1])
-  const getApplication = id => applications.find(app => app.id === id)
-  const updateApplication = (id, patch) => {
-    applications = applications.map(app => app.id === id ? { ...app, ...patch } : app)
-    assert.equal(saveApplications(applications), '')
+  const get = id => applications.find(app => app.id === id)
+  const update = async (id, patch) => {
+    const saved = await putApplication(id, { ...get(id), ...patch })
+    applications = applications.map(app => app.id === id ? saved : app)
+    return saved
   }
-  updateApplicationDocument('one', 'resume', true, getApplication, updateApplication)
-  updateApplicationDocument('one', 'coverLetter', true, getApplication, updateApplication)
-  applications = loadApplications().applications
-  assert.equal(getDocumentProgress(applications[0].documents), '2 of 4 ready')
-  assert.equal(applications[0].notes, 'Keep this')
-  assert.deepEqual(applications[1], other)
-  updateApplicationDocument('one', 'resume', false, getApplication, updateApplication)
-  assert.equal(getDocumentProgress(loadApplications().applications[0].documents), '1 of 4 ready')
+  assert.equal(getDocumentProgress(get('one').documents), '0 of 4 ready')
+  assert.equal(await updateApplicationDocument('one', 'resume', true, get, update), true)
+  await updateApplicationDocument('one', 'coverLetter', true, get, update)
+  applications = await getApplications()
+  assert.equal(getDocumentProgress(get('one').documents), '2 of 4 ready')
+  assert.equal(get('one').notes, 'Keep this')
+  assert.deepEqual(get('one').documents.custom, { keep: true })
+  assert.deepEqual(get('two'), other)
+  await updateApplicationDocument('one', 'resume', false, get, update)
+  assert.equal(getDocumentProgress((await getApplications())[0].documents), '1 of 4 ready')
 })

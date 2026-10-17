@@ -1,7 +1,8 @@
 ﻿import assert from 'node:assert/strict'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import ApplicationProvider from '../src/context/ApplicationProvider'
+import ApplicationProvider, { reloadContext } from './contextHarness'
+import { installApi } from './apiMock'
 import { useApplications } from '../src/context/ApplicationContext'
 import ApplicationForm from '../src/components/applications/ApplicationForm'
 import ApplicationCard from '../src/components/applications/ApplicationCard'
@@ -11,15 +12,17 @@ import ApplicationDetails from '../src/pages/ApplicationDetails'
 import Dashboard from '../src/pages/Dashboard'
 import { emptyInterview, prepareInterviewValues, getApplicationInterview, getUpcomingInterviews, formatInterviewTime } from '../src/utils/interviewUtils'
 
-export default function verifyInterviewIntegration() {
+export default async function verifyInterviewIntegration() {
   const key = 'interntrack_applications'
   const original = JSON.stringify([{ id: 'legacy', company: 'WSO2', status: 'Applied' }])
   const store = new Map([[key, original]])
   globalThis.localStorage = { getItem: name => store.get(name) ?? null, setItem: (name, value) => store.set(name, value) }
+  installApi(new Map(store))
+  await reloadContext()
   let context
   function Capture() { context = useApplications(); return null }
-  function capture() { renderToStaticMarkup(<ApplicationProvider><Capture /></ApplicationProvider>) }
-  capture()
+  async function capture() { await reloadContext(); renderToStaticMarkup(<ApplicationProvider><Capture /></ApplicationProvider>) }
+  await capture()
   assert.equal(store.get(key), original)
   const legacyForm = renderToStaticMarkup(<MemoryRouter><ApplicationForm initialValues={context.getApplication('legacy')} onSubmit={() => {}} /></MemoryRouter>)
   assert.match(legacyForm, /Interview Details/)
@@ -55,8 +58,8 @@ export default function verifyInterviewIntegration() {
       assert.doesNotMatch(formSection, /name="(?:meetingLink|location)"/)
     }
     const values = prepareInterviewValues({ company: fields.type + ' Company', position: 'React Intern', status: 'Applied', location: '', jobUrl: '', appliedDate: '', deadline: date, notes: '', interview })
-    context.addApplication(values)
-    capture() // Reload the provider from localStorage, as on browser refresh.
+    await context.addApplication(values)
+    await capture() // Reload the provider from the REST API, as on browser refresh.
     const added = context.applications.find(app => app.company === values.company)
     assert.deepEqual(added.interview, interview)
     assert.equal(added.interviewDate, date)
@@ -75,8 +78,8 @@ export default function verifyInterviewIntegration() {
     assert.match(indicator, /Interview:/)
     assert.match(indicator, /Deadline:/)
   }
-  context.addApplication({ company: 'Past Company', position: 'Intern', status: 'Applied', interview: { ...emptyInterview, date: '2000-01-01', time: '10:30', type: 'Phone' } })
-  capture()
+  await context.addApplication({ company: 'Past Company', position: 'Intern', status: 'Applied', interview: { ...emptyInterview, date: '2000-01-01', time: '10:30', type: 'Phone' } })
+  await capture()
   const past = context.applications.find(app => app.company === 'Past Company')
   const pastCard = renderToStaticMarkup(<MemoryRouter><ApplicationCard application={past} /></MemoryRouter>)
   assert.doesNotMatch(pastCard, /Interview:/)
@@ -93,13 +96,13 @@ export default function verifyInterviewIntegration() {
   for (const item of getUpcomingInterviews(context.applications)) assert.ok(section.includes('/applications/' + item.application.id))
 
   const online = context.applications.find(app => app.company === 'Online Company')
-  context.updateApplication(online.id, prepareInterviewValues({ ...online, interview: { ...online.interview, stage: 'Final Interview', time: '15:45' } }))
-  capture()
+  await context.updateApplication(online.id, prepareInterviewValues({ ...online, interview: { ...online.interview, stage: 'Final Interview', time: '15:45' } }))
+  await capture()
   assert.equal(context.getApplication(online.id).interview.stage, 'Final Interview')
   assert.equal(context.getApplication(online.id).interview.time, '15:45')
   assert.equal(context.getApplication(online.id).deadline, date)
-  context.updateApplication(online.id, prepareInterviewValues({ ...context.getApplication(online.id), interview: emptyInterview }))
-  capture()
+  await context.updateApplication(online.id, prepareInterviewValues({ ...context.getApplication(online.id), interview: emptyInterview }))
+  await capture()
   assert.equal(context.getApplication(online.id).interview, undefined)
   assert.equal(getApplicationInterview(context.getApplication(online.id)).date, '')
   assert.equal(context.applications.length, 5)

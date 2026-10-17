@@ -10,9 +10,9 @@ export default function KanbanBoard({ applications, today }) {
   const [destination, setDestination] = useState(null)
   const [announcement, setAnnouncement] = useState('')
   function endDrag() { draggedId.current = null; setDragging(null); setDestination(null) }
-  function move(id, status) {
+  async function move(id, status) {
     const application = getApplication(id)
-    if (moveApplicationStatus(id, status, getApplication, updateApplication)) {
+    if (await moveApplicationStatus(id, status, getApplication, updateApplication)) {
       setAnnouncement(application.company + ' moved to ' + status + '.')
     }
     endDrag()
@@ -38,7 +38,7 @@ export default function KanbanBoard({ applications, today }) {
   function drop(event, status) {
     event.preventDefault()
     const id = event.dataTransfer.getData(KANBAN_DRAG_TYPE)
-    if (draggedId.current && id === draggedId.current) move(id, status)
+    if (draggedId.current && id === draggedId.current) return move(id, status)
     else endDrag()
   }
   return <><div className="kanban-board" role="region" aria-label="Applications board, scroll horizontally to view all status columns" tabIndex={0}>{STATUSES.map(status => <KanbanColumn key={status} status={status} applications={applications.filter(application => application.status === status)} today={today} dragging={dragging} highlighted={destination === status} onDragStart={startDrag} onDragEnd={endDrag} onDragOver={event => overColumn(event, status)} onDragLeave={event => leaveColumn(event, status)} onDrop={event => drop(event, status)} onMove={move} />)}</div><span className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</span></>

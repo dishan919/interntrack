@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { addActivity, applyApplicationUpdate, createApplication, formatActivityDate, getActivityHistory, getNewestActivity } from '../src/utils/activityUtils.js'
-import { loadApplications, saveApplications } from '../src/services/applicationService.js'
+import { getApplications, updateApplication as putApplication } from '../src/services/applicationService.js'
+import { installApi } from './apiMock.js'
 
 const legacy = { id: 'one', company: 'IFS', status: 'Applied', notes: 'Keep this', createdAt: '2026-10-01T09:00:00Z' }
 
@@ -106,23 +107,18 @@ test('timeline sorts newest first without mutating saved order and handles inval
   assert.equal(formatActivityDate(early.createdAt), new Date(early.createdAt).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }))
 })
 
-test('activity persists through existing storage while legacy and unrelated records are preserved', () => {
-  const key = 'interntrack_applications'
+test('legacy history stays absent on load; REST updates persist new events and isolate records', async () => {
   const other = { ...legacy, id: 'two', company: 'WSO2' }
-  const original = JSON.stringify([legacy, other])
-  const storage = new Map([[key, original]])
-  let writes = 0
-  globalThis.localStorage = { getItem: name => storage.get(name) ?? null, setItem: (name, value) => { writes++; storage.set(name, value) } }
-  const loaded = loadApplications()
-  assert.equal(loaded.error, '')
-  assert.equal(writes, 0)
-  assert.equal(storage.get(key), original)
-  assert.equal(loaded.applications[0].activity, undefined)
-  const updated = loaded.applications.map(app => app.id === 'one' ? applyApplicationUpdate(app, { status: 'Interview', documents: { transcript: true } }) : app)
-  assert.equal(saveApplications(updated), '')
-  const reloaded = loadApplications()
-  assert.equal(reloaded.error, '')
-  assert.deepEqual(reloaded.applications[0].activity, updated[0].activity)
-  assert.equal(reloaded.applications[0].notes, legacy.notes)
-  assert.deepEqual(reloaded.applications[1], loaded.applications[1])
+  const store = new Map([['interntrack_applications', JSON.stringify([legacy, other])]])
+  const calls = installApi(store)
+  const loaded = await getApplications()
+  assert.equal(loaded[0].activity, undefined)
+  assert.equal(loaded[0].position, '')
+  assert.deepEqual(calls.map(call => call.method), ['GET'])
+  const updated = applyApplicationUpdate(loaded[0], { status: 'Interview', documents: { transcript: true } })
+  await putApplication(updated.id, updated)
+  const reloaded = await getApplications()
+  assert.deepEqual(reloaded[0].activity, updated.activity)
+  assert.equal(reloaded[0].notes, legacy.notes)
+  assert.deepEqual(reloaded[1], loaded[1])
 })

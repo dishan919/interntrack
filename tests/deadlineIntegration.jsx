@@ -1,25 +1,28 @@
 ﻿import assert from 'node:assert/strict'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import ApplicationProvider from '../src/context/ApplicationProvider'
+import ApplicationProvider, { reloadContext } from './contextHarness'
+import { installApi } from './apiMock'
 import { useApplications } from '../src/context/ApplicationContext'
 import ApplicationForm from '../src/components/applications/ApplicationForm'
 import ApplicationCard from '../src/components/applications/ApplicationCard'
 import Dashboard from '../src/pages/Dashboard'
 import Applications from '../src/pages/Applications'
 import ApplicationDetails from '../src/pages/ApplicationDetails'
-import { loadApplications } from '../src/services/applicationService'
+import { getApplications } from '../src/services/applicationService'
 
-export default function verifyDeadlineIntegration() {
+export default async function verifyDeadlineIntegration() {
   const key = 'interntrack_applications'
   const legacy = { id: 'legacy', company: 'WSO2', position: 'Intern', status: 'Applied' }
   const original = JSON.stringify([legacy])
   const store = new Map([[key, original]])
   globalThis.localStorage = { getItem: name => store.get(name) ?? null, setItem: (name, value) => store.set(name, value) }
+  installApi(new Map(store))
+  await reloadContext()
   let context
   function Capture() { context = useApplications(); return null }
-  function capture() { renderToStaticMarkup(<ApplicationProvider><Capture /></ApplicationProvider>) }
-  capture()
+  async function capture() { await reloadContext(); renderToStaticMarkup(<ApplicationProvider><Capture /></ApplicationProvider>) }
+  await capture()
   assert.equal(store.get(key), original, 'rendering existing records must not rewrite storage')
   const oldApp = context.applications[0]
   const oldForm = renderToStaticMarkup(<MemoryRouter><ApplicationForm initialValues={oldApp} onSubmit={() => {}} /></MemoryRouter>)
@@ -28,35 +31,35 @@ export default function verifyDeadlineIntegration() {
   const oldCard = renderToStaticMarkup(<MemoryRouter><ApplicationCard application={oldApp} /></MemoryRouter>)
   assert.doesNotMatch(oldCard, /Deadline:/)
 
-  // Exercise the actual Context -> service -> localStorage add/edit path.
+  // Exercise the actual Context -> service -> REST API add/edit path.
   const formValues = { company: 'IFS', position: 'React Intern', status: 'Applied', location: '', jobUrl: '', appliedDate: '', interviewDate: '', notes: '', deadline: '2026-10-25' }
-  context.addApplication(formValues)
-  capture() // Fresh provider load represents a browser refresh.
+  await context.addApplication(formValues)
+  await capture() // Fresh provider load represents a browser refresh.
   const added = context.applications.find(app => app.company === 'IFS')
   assert.ok(added.id)
   assert.equal(added.deadline, '2026-10-25')
   assert.equal(context.applications.length, 2)
   const editForm = renderToStaticMarkup(<MemoryRouter><ApplicationForm initialValues={added} onSubmit={() => {}} /></MemoryRouter>)
   assert.match(editForm, /type="date" name="deadline" value="2026-10-25"/)
-  context.updateApplication(added.id, { ...added, deadline: '2026-10-30' })
-  capture()
+  await context.updateApplication(added.id, { ...added, deadline: '2026-10-30' })
+  await capture()
   assert.equal(context.getApplication(added.id).deadline, '2026-10-30')
   assert.equal(context.getApplication('legacy').company, 'WSO2')
   const card = renderToStaticMarkup(<MemoryRouter><ApplicationCard application={context.getApplication(added.id)} today={new Date(2026, 9, 20)} /></MemoryRouter>)
   assert.match(card, /Deadline:/)
   assert.match(card, /10 days left/)
-  context.updateApplication(added.id, { ...context.getApplication(added.id), deadline: '' })
-  capture()
+  await context.updateApplication(added.id, { ...context.getApplication(added.id), deadline: '' })
+  await capture()
   assert.equal(context.getApplication(added.id).deadline, '')
-  assert.equal(loadApplications().applications.length, 2)
+  assert.equal((await getApplications()).length, 2)
 
   // Make one future and one expired deadline; verify rendered dashboard links.
   const future = new Date()
   future.setDate(future.getDate() + 10)
   const futureDeadline = String(future.getFullYear()).padStart(4, '0') + '-' + String(future.getMonth() + 1).padStart(2, '0') + '-' + String(future.getDate()).padStart(2, '0')
-  context.updateApplication(added.id, { ...context.getApplication(added.id), deadline: futureDeadline })
-  capture()
-  context.addApplication({ ...formValues, company: 'Expired Company', deadline: '2000-01-01' })
+  await context.updateApplication(added.id, { ...context.getApplication(added.id), deadline: futureDeadline })
+  await capture()
+  await context.addApplication({ ...formValues, company: 'Expired Company', deadline: '2000-01-01' })
   const dashboard = renderToStaticMarkup(<MemoryRouter><ApplicationProvider><Dashboard /></ApplicationProvider></MemoryRouter>)
   const section = dashboard.slice(dashboard.indexOf('Upcoming Deadlines'))
   assert.match(section, /10 days left/)
@@ -68,7 +71,7 @@ export default function verifyDeadlineIntegration() {
   assert.doesNotMatch(details('legacy'), /Application Deadline/)
   assert.match(details(added.id), /Application Deadline/)
   assert.match(details(added.id), /10 days left/)
-  const expired = loadApplications().applications.find(app => app.company === 'Expired Company')
+  const expired = (await getApplications()).find(app => app.company === 'Expired Company')
   assert.match(details(expired.id), /Expired/)
   assert.equal(expired.status, 'Applied', 'expired deadlines must not change application status')
   const page = renderToStaticMarkup(<MemoryRouter><ApplicationProvider><Applications /></ApplicationProvider></MemoryRouter>)

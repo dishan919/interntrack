@@ -2,14 +2,22 @@ import { useState } from 'react'
 import { useApplications } from '../context/ApplicationContext'
 import { exportApplicationData } from '../utils/exportData'
 export default function Settings() {
-  const { applications, clearApplications } = useApplications()
+  const { applications, clearApplications, pending, importLegacyApplications } = useApplications()
   const [message, setMessage] = useState('')
+  const [importing, setImporting] = useState(false)
+  async function importRecords() {
+    if (!window.confirm('Import previous records from this browser into MongoDB?')) return
+    setImporting(true)
+    try { if (await importLegacyApplications()) setMessage('Browser records imported. The original backup is retained.') }
+    catch (error) { setMessage(error.message) }
+    finally { setImporting(false) }
+  }
   function exportData() {
     exportApplicationData(applications)
     setMessage('Your application backup has been downloaded.')
   }
-  function clear() {
-    if (window.confirm('Permanently delete all ' + applications.length + ' applications from this device? Export a backup first.')) { clearApplications(); setMessage('All applications have been cleared.') }
+  async function clear() {
+    if (window.confirm('Permanently delete all ' + applications.length + ' applications from the database? Export a backup first.')) { if (await clearApplications()) setMessage('All applications have been cleared.') }
   }
-  return <><div className="page-heading"><div><div className="eyebrow">MAKE SPACE FOR YOUR NEXT CHAPTER</div><h1>Settings</h1><p>Manage your workspace and application data.</p></div></div>{message && <div className="notice" role="status">{message}</div>}<section className="panel settings-panel"><div className="panel-heading"><h2>Your data</h2></div><div className="setting-row"><div><h3>Stored on this device</h3><p>Your {applications.length} applications are stored in this browser's localStorage. They remain after refresh. Clearing browser data removes them; other browsers and devices have their own workspace.</p></div><span className="count-pill">Local storage</span></div><div className="setting-row"><div><h3>Export a backup</h3><p>Download your applications as a JSON file to keep a personal copy.</p></div><button className="button secondary" onClick={exportData}>Export data ?</button></div><div className="setting-row"><div><h3 className="text-danger">Clear all applications</h3><p>Remove every application from this browser. This cannot be undone.</p></div><button className="button danger" disabled={!applications.length} onClick={clear}>Clear all data</button></div></section><div className="about-note"><strong>InternTrack</strong><p>A simple, personal space for your internship and job search. No account required.</p></div></>
+  return <><div className="page-heading"><div><div className="eyebrow">MAKE SPACE FOR YOUR NEXT CHAPTER</div><h1>Settings</h1><p>Manage your workspace and application data.</p></div></div>{message && <div className="notice" role="status">{message}</div>}<section className="panel settings-panel"><div className="panel-heading"><h2>Your data</h2></div><div className="setting-row"><div><h3>Stored in MongoDB</h3><p>Your {applications.length} applications are saved through the API in MongoDB and remain after refresh.</p></div><span className="count-pill">MongoDB</span></div><div className="setting-row"><div><h3>Export a backup</h3><p>Download your applications as a JSON file to keep a personal copy.</p></div><button className="button secondary" onClick={exportData}>Export data ?</button></div><div className="setting-row"><div><h3 className="text-danger">Clear all applications</h3><p>Remove every application from the database. This cannot be undone.</p></div><button className="button danger" disabled={pending || !applications.length} onClick={clear}>Clear all data</button></div></section><section className="panel settings-panel"><h2>Previous browser records</h2><p>Import the old browser backup once. Existing imported IDs are skipped on retry. The original backup stays in this browser.</p><button className="button secondary" disabled={pending || importing} onClick={importRecords}>Import browser records</button></section><div className="about-note"><strong>InternTrack</strong><p>A simple, personal space for your internship and job search. No account required.</p></div></>
 }

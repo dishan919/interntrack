@@ -20,6 +20,6 @@ export function updateApplicationDocument(id, key, checked, getApplication, upda
   if (!application) return false
   const documents = normalizeDocuments(application.documents)
   if (documents[key] === checked) return false
-  updateApplication(id, { documents: { ...documents, [key]: checked } })
-  return true
+  const result = updateApplication(id, { documents: { ...application.documents, ...documents, [key]: checked } })
+  return result?.then ? result.then(Boolean) : true
 }

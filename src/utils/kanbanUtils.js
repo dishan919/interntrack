@@ -5,6 +5,6 @@ export function moveApplicationStatus(id, status, getApplication, updateApplicat
   if (!STATUSES.includes(status)) return false
   const application = getApplication(id)
   if (!application || application.status === status) return false
-  updateApplication(id, { status })
-  return true
+  const result = updateApplication(id, { status })
+  return result?.then ? result.then(Boolean) : true
 }

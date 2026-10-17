@@ -1,7 +1,8 @@
 ﻿import assert from 'node:assert/strict'
 import test from 'node:test'
 import { getDeadlineStatus, getUpcomingDeadlines, sortByDeadline } from '../src/utils/deadlineUtils.js'
-import { loadApplications, saveApplications } from '../src/services/applicationService.js'
+import { getApplications, updateApplication as putApplication, deleteApplication as removeApplication } from '../src/services/applicationService.js'
+import { installApi } from './apiMock.js'
 
 const today = new Date(2026, 9, 20, 23, 59, 59)
 
@@ -54,28 +55,22 @@ test('upcoming deadlines exclude expired and missing dates and show the closest 
   assert.equal(JSON.stringify(apps), before)
 })
 
-test('legacy records load without rewriting storage and deadlines survive reload', () => {
-  const key = 'interntrack_applications'
-  const legacy = { id: 'APP001', company: 'WSO2', position: 'Software Engineer Intern', status: 'Applied' }
-  const minimalNew = { id: 'APP002', company: 'IFS', position: 'React Intern', status: 'Applied', deadline: '2026-10-25' }
-  const original = JSON.stringify([legacy, minimalNew])
-  const storage = new Map([[key, original]])
-  let writes = 0
-  globalThis.localStorage = { getItem: name => storage.get(name) ?? null, setItem: (name, value) => { writes++; storage.set(name, value) } }
-  const loaded = loadApplications()
-  assert.equal(loaded.error, '')
-  assert.equal(loaded.applications.length, 2)
-  assert.equal(loaded.applications[0].deadline, undefined)
-  assert.equal(loaded.applications[0].notes, '')
-  assert.equal(storage.get(key), original)
-  assert.equal(writes, 0)
-  const updated = loaded.applications.map(app => app.id === 'APP001' ? { ...app, deadline: '2026-10-30' } : app)
-  assert.equal(saveApplications(updated), '')
-  assert.equal(loadApplications().applications[0].deadline, '2026-10-30')
-  assert.equal(loadApplications().applications[0].status, 'Applied')
-  assert.equal(loadApplications().applications[1].deadline, '2026-10-25')
-  saveApplications(updated.map(app => ({ ...app, deadline: '' })))
-  assert.equal(loadApplications().applications[0].deadline, '')
-  saveApplications([])
-  assert.deepEqual(loadApplications().applications, [])
+test('legacy deadlines stay optional and API updates, clearing, and empty reloads persist', async () => {
+  const records = [{ id: 'APP001', company: 'WSO2', position: 'Intern', status: 'Applied' }, { id: 'APP002', company: 'IFS', position: 'Intern', status: 'Applied', deadline: '2026-10-25' }]
+  const store = new Map([['interntrack_applications', JSON.stringify(records)]])
+  const calls = installApi(store)
+  const loaded = await getApplications()
+  assert.equal(loaded[0].deadline, undefined)
+  assert.equal(loaded[0].notes, '')
+  assert.equal(calls.length, 1)
+  await putApplication(loaded[0].id, { ...loaded[0], deadline: '2026-10-30' })
+  let reloaded = await getApplications()
+  assert.equal(reloaded[0].deadline, '2026-10-30')
+  assert.equal(reloaded[0].status, 'Applied')
+  assert.equal(reloaded[1].deadline, '2026-10-25')
+  for (const app of reloaded) await putApplication(app.id, { ...app, deadline: '' })
+  reloaded = await getApplications()
+  assert.ok(reloaded.every(app => app.deadline === ''))
+  for (const app of reloaded) await removeApplication(app.id)
+  assert.deepEqual(await getApplications(), [])
 })

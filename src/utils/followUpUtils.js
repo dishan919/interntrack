@@ -35,6 +35,6 @@ export function updateFollowUp(id, value, getApplication, updateApplication) {
   const application = getApplication(id)
   if (!application || followUpsEqual(application.followUp, value)) return false
   const followUp = normalizeFollowUp(value)
-  updateApplication(id, { followUp: followUp.date ? followUp : null })
-  return true
+  const result = updateApplication(id, { followUp: followUp.date ? followUp : null })
+  return result?.then ? result.then(Boolean) : true
 }
