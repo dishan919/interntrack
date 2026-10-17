@@ -1,6 +1,6 @@
 # InternTrack
 
-A beginner-friendly React application for tracking internship and job applications. Uses Vite, JavaScript, React Router, Context API, CSS, and browser localStorage. An independent Express backend provides a health check and a temporary Applications REST API; there is no authentication.
+A beginner-friendly React application for tracking internship and job applications. Uses Vite, JavaScript, React Router, Context API, CSS, and browser localStorage. An independent Express backend provides a health check and a MongoDB-backed Applications REST API; there is no authentication.
 
 ## Run locally
 
@@ -26,7 +26,21 @@ Copy-Item .env.example .env
 npm run dev
 ```
 
-The backend requires Node.js 22.12+ and uses Node's built-in environment-file loading and watch mode. `npm start` runs without watch mode. `.env` is optional and ignored by Git; `PORT` defaults to `5000`.
+The backend requires Node.js 22.12+ and uses Node's built-in environment-file loading and watch mode. `npm start` runs without watch mode. `PORT` defaults to `5000`. Set `MONGODB_URI` in the ignored `server/.env` file (or your environment):
+
+```dotenv
+PORT=5000
+MONGODB_URI=mongodb://127.0.0.1:27017/interntrack
+```
+
+Install MongoDB Community Server separately. If it is installed as a Windows service, start it with `Start-Service MongoDB` in an administrator PowerShell. Alternatively, with `mongod` on PATH, run the following from the repository folder in a separate terminal (keep the data directory between restarts):
+
+```powershell
+New-Item -ItemType Directory -Force "$env:LOCALAPPDATA/InternTrack/mongodb"
+mongod --dbpath "$env:LOCALAPPDATA/InternTrack/mongodb" --bind_ip 127.0.0.1 --port 27017
+```
+
+The backend connects before listening and exits with a clear, credential-free error if MongoDB is unavailable or `MONGODB_URI` is missing. No personal database or MongoDB service is installed or configured by this repository.
 
 Backend URL: http://localhost:5000. GET http://localhost:5000/api/health returns HTTP 200 with `{"status":"ok","message":"InternTrack API is running"}`. Unknown routes return JSON with HTTP 404. CORS allows the default Vite origins http://localhost:5173 and http://127.0.0.1:5173; update the origin list in `server/src/app.js` if using another frontend port.
 
@@ -39,11 +53,13 @@ npm run lint
 npm run build
 ```
 
-The backend separates routes, controllers, and temporary data in `server/src/`. It has no database.
+The backend separates routes, controllers, the Mongoose model (`server/src/models/Application.js`), and database connection configuration (`server/src/config/database.js`).
+
+Backend tests use development-only `mongodb-memory-server` to launch disposable real MongoDB processes. They never use your `MONGODB_URI` or personal database. The first test run needs network access to download a MongoDB binary, cached under `server/node_modules/.cache/`. Tests clear only their own temporary database and stop it afterward. The persistence smoke test starts the actual Express entry point and verifies records survive two Express process restarts.
 
 ### Applications REST API
 
-Applications API data is currently stored in memory and resets when the backend restarts. The collection starts empty and is independent of browser localStorage.
+MongoDB is now used by the Express Applications API. Records survive backend restarts when using the same MongoDB database. The React frontend still uses localStorage in this step; no browser data is migrated or sent to MongoDB.
 
 | Method | Endpoint | Success |
 | --- | --- | --- |
@@ -56,7 +72,9 @@ Applications API data is currently stored in memory and resets when the backend 
 
 POST and PUT require non-empty string `company` and `position` values, which are trimmed. Status must be `Saved`, `Applied`, `Interview`, `Offer`, or `Rejected`; omitted status defaults to `Saved`. Invalid input returns JSON 400. Missing application IDs return JSON 404 with `Application not found`.
 
-PUT replaces all editable data: omitted optional fields are removed, and omitted status resets to `Saved`. Only `id` is server-managed: POST generates a UUID and PUT preserves it regardless of a client-supplied ID. Optional JSON fields (including interviews, skills, documents, activity, follow-ups, created date, and other metadata) are retained when supplied, without additional validation or generated timeline events in this step.
+PUT replaces all editable data: omitted optional fields are removed, and omitted status resets to `Saved`. MongoDB generates `_id`; API JSON exposes it as a string `id` and omits `_id` and `__v`. Client-supplied `id`, `_id`, and `__v` are ignored on POST and PUT. Malformed and nonexistent IDs return the same application-specific 404. No previous in-memory UUID records are migrated.
+
+The schema requires trimmed company/position strings and an allowed status. Optional JSON fields (including interviews, skills, documents, activity, follow-ups, created date, and other metadata) are retained using flexible schema fields without additional validation, date coercion, generated nested IDs, or generated timeline events. Only database identity is server-managed; `createdAt` remains optional editable metadata for Step 2 compatibility.
 
 Example PowerShell API flow with the backend running:
 
