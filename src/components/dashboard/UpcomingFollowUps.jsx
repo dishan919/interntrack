@@ -13,6 +13,6 @@ export default function UpcomingFollowUps({ applications, today }) {
         <span className="deadline-date">{formatDate(app.followUp.date)}</span>
         <span className={'badge deadline-badge deadline-' + status.tone}><span />{status.label}</span>
       </Link>
-    }) : <div className="quiet-state">No follow-ups scheduled.</div>}
+    }) : <div className="quiet-state"><span className="dashboard-empty-symbol" aria-hidden="true">↗</span><strong>No follow-ups pending</strong><p>No follow-ups scheduled. Your pending reminders will appear here.</p></div>}
   </section>
 }

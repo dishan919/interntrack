@@ -1,0 +1,110 @@
+/* Dashboard presentation only. Shared components keep their styles elsewhere. */
+.dashboard-page {
+  --muted: #62626c;
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+.dashboard-page .dashboard-header { display: flex; align-items: center; justify-content: space-between; gap: 32px; padding: 4px 0 8px; }
+.dashboard-page .dashboard-welcome { display: flex; align-items: center; gap: 8px; color: var(--link); font-size: 12px; font-weight: 600; margin-bottom: 14px; }
+.dashboard-page .dashboard-welcome::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.dashboard-page h1 { font-size: clamp(25px, 2.5vw, 32px); letter-spacing: -1px; font-weight: 650; line-height: 1.3; }
+.dashboard-page h1 > span { color: #62626c; font-weight: 450; }
+.dashboard-page .dashboard-intro { max-width: 470px; margin-top: 14px; font-size: 13px; line-height: 1.7; }
+.dashboard-page .dashboard-add, .dashboard-page .empty-state .primary { background: #202024; border-color: #202024; color: #fff; }
+.dashboard-page .dashboard-add { flex-shrink: 0; min-height: 44px; padding: 12px 18px; border-radius: 9px; font-size: 13px; gap: 9px; }
+.dashboard-page .dashboard-add > span { font-size: 19px; font-weight: 400; line-height: 1; }
+.dashboard-page .dashboard-add:hover, .dashboard-page .empty-state .primary:hover { background: #39393f; }
+.dashboard-page .stats-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; gap: 14px; }
+.dashboard-page .stat-card { position: relative; padding: 22px 20px; border-radius: 16px; box-shadow: none; min-width: 0; }
+.dashboard-page .stat-icon { position: absolute; right: 16px; top: 20px; width: 28px; height: 28px; background: #f5f5f7; border-radius: 8px; color: #777780; }
+.dashboard-page .stat-icon::before { font-size: 15px; }
+.dashboard-page .stat-icon.purple { background: var(--accent-soft); color: var(--link); }
+.dashboard-page .stat-value { margin: 0 34px 12px 0; font-size: 30px; letter-spacing: -1px; font-weight: 650; }
+.dashboard-page .stat-card .muted { font-size: 12px; color: var(--muted); }
+.dashboard-page .panel { border-radius: 16px; box-shadow: 0 2px 4px rgb(24 24 27 / 2%); min-width: 0; margin: 0; }
+.dashboard-page .panel-heading { padding: 22px 24px; gap: 16px; align-items: center; flex-wrap: nowrap; }
+.dashboard-page .panel-heading > div { min-width: 0; }
+.dashboard-page .panel-heading h2 { font-size: 15px; font-weight: 600; letter-spacing: -.3px; }
+.dashboard-page .panel-heading p { font-size: 12px; line-height: 1.6; margin-top: 5px; }
+.dashboard-page .subtle-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; flex-shrink: 0; color: #52525b; font-size: 12px; }
+.dashboard-page .subtle-link:hover { color: var(--link); }
+.dashboard-page .dashboard-overview .panel-heading { border: 0; padding-bottom: 6px; }
+.dashboard-page .dashboard-overview-content { padding: 18px 24px 24px; }
+.dashboard-page .dashboard-status-track { display: flex; gap: 4px; height: 9px; border-radius: 4px; overflow: hidden; background: #f0f0f3; }
+.dashboard-page .dashboard-status-segment { flex-basis: 0; min-width: 4px; border-radius: 2px; }
+.dashboard-page .status-saved { background: #d4d4dc; }
+.dashboard-page .status-applied { background: #9b96be; }
+.dashboard-page .status-interview { background: #7564bc; }
+.dashboard-page .status-offer { background: #8ca99b; }
+.dashboard-page .status-rejected { background: #b5a3a6; }
+.dashboard-page .dashboard-status-legend { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; list-style: none; padding: 0; margin: 20px 0 0; }
+.dashboard-page .dashboard-status-legend li { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); min-width: 0; }
+.dashboard-page .dashboard-status-legend strong { margin-left: auto; color: var(--text); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dashboard-page .dashboard-status-dot { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+.dashboard-page .dashboard-overview-empty { margin-top: 18px; font-size: 12px; }
+.dashboard-page .application-row { padding: 19px 24px; grid-template-columns: 38px minmax(0, 1fr) 96px 110px 44px; gap: 16px; }
+.dashboard-page .company-logo { width: 38px; height: 38px; border-color: #ededf0; background: #f7f7f9; border-radius: 10px; }
+.dashboard-page .application-title > a { font-size: 13px; }
+.dashboard-page .application-date { font-size: 11px; }
+.dashboard-page .row-actions .arrow-link { min-width: 44px; min-height: 44px; }
+.dashboard-page .dashboard-attention-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+.dashboard-page .upcoming-panel { display: block; }
+.dashboard-page .dashboard-section-count { display: grid; place-items: center; flex-shrink: 0; min-width: 28px; height: 28px; padding: 0 8px; border: 1px solid #ededf0; background: #f7f7f9; border-radius: 8px; font-size: 12px; color: var(--muted); }
+.dashboard-page .interview-item { padding: 20px 24px; gap: 14px; border-bottom: 1px solid var(--border); }
+.dashboard-page .interview-item:last-child { border-bottom: 0; }
+.dashboard-page .interview-day { background: #faf9ff; border-color: #e9e5f5; color: #62538f; width: 48px; padding: 9px 6px; font-size: 21px; border-radius: 10px; }
+.dashboard-page .upcoming-interview-info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.dashboard-page .upcoming-interview-info strong { font-size: 13px; }
+.dashboard-page .upcoming-interview-info > span { font-size: 12px; line-height: 1.6; }
+.dashboard-page .upcoming-interview-info > small { line-height: 1.6; }
+.dashboard-page .dashboard-interview-meta { margin-top: 7px; color: var(--muted); }
+.dashboard-page .dashboard-item-arrow { color: #85858e; font-size: 17px; }
+.dashboard-page .deadline-item { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 16px; padding: 20px 24px; }
+.dashboard-page .deadline-item .deadline-opportunity { grid-column: 1 / -1; }
+.dashboard-page .deadline-item .deadline-badge { justify-self: end; }
+.dashboard-page .deadline-date { font-size: 11px; line-height: 1.6; }
+.dashboard-page .best-skill-item { padding: 22px 24px; min-height: 90px; }
+.dashboard-page .best-skill-item > .skill-match-indicator { padding: 5px 8px; color: #62538f; background: #f5f3fb; border: 1px solid #ebe7f5; border-radius: 6px; font-size: 11px; }
+.dashboard-page .quiet-state { display: flex; align-items: flex-start; flex-direction: column; justify-content: center; min-height: 174px; padding: 28px 24px; text-align: left; font-size: 13px; line-height: 1.7; color: var(--muted); }
+.dashboard-page .quiet-state strong { font-size: 13px; font-weight: 500; color: #3f3f46; margin-bottom: 5px; }
+.dashboard-page .quiet-state p { font-size: 12px; max-width: 290px; line-height: 1.7; }
+.dashboard-page .dashboard-empty-symbol { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #ededf0; border-radius: 9px; background: #fafafa; font-size: 19px; color: #777780; margin-bottom: 14px; }
+.dashboard-page a:focus-visible { outline: 3px solid var(--primary); outline-offset: -3px; border-radius: 6px; }
+.dashboard-page .dashboard-add:focus-visible { outline-offset: 4px; }
+.dashboard-page .empty-state { padding: 32px 24px; }
+@media (max-width: 1150px) {
+  .dashboard-page .dashboard-header { align-items: flex-start; }
+  .dashboard-page .dashboard-add { margin-top: 30px; }
+  .dashboard-page .stat-card { padding: 20px 15px; }
+  .dashboard-page .stat-icon { right: 12px; width: 24px; height: 24px; }
+  .dashboard-page .stat-value { font-size: 27px; }
+  .dashboard-page .stats-grid { gap: 10px; }
+}
+@media (max-width: 760px) {
+  .dashboard-page .dashboard-attention-grid { grid-template-columns: minmax(0, 1fr); }
+  .dashboard-page .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .dashboard-page .dashboard-status-legend { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px; }
+  .dashboard-page .dashboard-header { flex-direction: column; gap: 20px; }
+  .dashboard-page .dashboard-add { margin-top: 0; }
+}
+@media (max-width: 640px) {
+  .dashboard-page { gap: 20px; }
+  .dashboard-page .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-page .dashboard-status-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-page .panel-heading { padding: 20px; gap: 12px; }
+  .dashboard-page .panel-heading p { font-size: 11px; }
+  .dashboard-page .dashboard-overview-content { padding: 16px 20px 22px; }
+  .dashboard-page .application-row { grid-template-columns: 36px minmax(0, 1fr) 44px; gap: 8px 12px; padding: 18px 20px; }
+  .dashboard-page .application-row .company-logo { grid-column: 1; grid-row: 1; }
+  .dashboard-page .application-title { grid-column: 2; }
+  .dashboard-page .application-row > .badge { grid-column: 2; }
+  .dashboard-page .application-row .application-date { grid-column: 2; }
+  .dashboard-page .application-row .row-actions { grid-column: 3; grid-row: 1 / 4; align-self: center; }
+  .dashboard-page .row-actions .arrow-link { background: transparent; border: 0; }
+  .dashboard-page .deadline-item, .dashboard-page .interview-item, .dashboard-page .best-skill-item { padding: 20px; }
+  .dashboard-page .quiet-state { padding: 26px 20px; }
+  .dashboard-page .best-skill-item { gap: 12px; }
+}

@@ -10,7 +10,9 @@ import { useApplications } from '../context/ApplicationContext'
 import StatCard from '../components/common/StatCard'
 import EmptyState from '../components/common/EmptyState'
 import ApplicationCard from '../components/applications/ApplicationCard'
-import { countStatuses, formatDate } from '../utils/applications'
+import { countStatuses, formatDate, STATUSES } from '../utils/applications'
+import '../styles/dashboard.css'
+
 export default function Dashboard() {
   const today = useDeadlineToday()
   const { applications } = useApplications()
@@ -19,5 +21,80 @@ export default function Dashboard() {
   const counts = countStatuses(applications)
   const recent = [...applications].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5)
   const upcoming = getUpcomingInterviews(applications, today)
-  return <><div className="page-heading"><div><div className="eyebrow">YOUR CAREER AT A GLANCE</div><h1>Let's make your next move<span className="teal-text">.</span></h1><p>A little organization today. A world of opportunities tomorrow.</p></div><Link className="button primary" to="/applications/new">+ Add application</Link></div><div className="welcome-banner"><div><span className="banner-label">ONE STEP CLOSER</span><h2>Your future is in progress.</h2><p>Track your opportunities, celebrate your wins, and keep moving forward.</p><Link to="/applications">Explore your applications <span>?</span></Link></div><div className="banner-art" aria-hidden="true"><div className="art-orbit" /><div className="art-card"><span>?</span><div>Next chapter</div><strong>Loading possibilities...</strong><i /><i /></div><div className="art-star">?</div></div></div><div className="stats-grid"><StatCard label="Total applications" value={applications.length} symbol="?" /><StatCard label="Applied" value={counts.Applied} symbol="?" tone="blue" /><StatCard label="Interviews" value={counts.Interview} symbol="?" tone="purple" /><StatCard label="Offers" value={counts.Offer} symbol="?" tone="green" /><StatCard label="Rejected" value={counts.Rejected} symbol="-" tone="rose" /></div><div className="dashboard-columns"><section className="panel recent-panel"><div className="panel-heading"><div><h2>Recent applications</h2><p>Your latest opportunities, all in one place.</p></div><Link className="subtle-link" to="/applications">View all ?</Link></div>{recent.length ? recent.map(app => <ApplicationCard key={app.id} application={app} compact />) : <EmptyState />}</section><aside className="panel upcoming-panel"><div className="panel-heading"><div><h2>Upcoming Interviews</h2><p>Prepare for your next conversation.</p></div><span className="calendar-symbol">?</span></div>{upcoming.length ? upcoming.map(({ application: app, interview }) => <Link className="interview-item" key={app.id} to={'/applications/' + app.id}><span className="interview-day">{Number(interview.date.slice(-2))}<small>{new Date(interview.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short' })}</small></span><div className="upcoming-interview-info"><strong>{app.company}</strong><span>{app.position || 'Position not set'}</span>{interview.stage && <span>{interview.stage}</span>}<small>{formatDate(interview.date)}{interview.time && <> Â· {formatInterviewTime(interview.time)}</>}</small>{interview.type && <span>{interview.type}</span>}<InterviewBadge interview={interview} now={today} /></div></Link>) : <div className="quiet-state">No upcoming interviews yet.<br />Your next opportunity is out there.</div>}<div className="encouragement"><span>?</span><strong>You've got this.</strong><p>Progress isn't always a straight line. Keep showing up.</p></div></aside></div><section className="panel deadlines-panel"><div className="panel-heading"><div><h2>Upcoming Deadlines</h2><p>Your next application deadlines, closest first.</p></div></div>{upcomingDeadlines.length ? upcomingDeadlines.map(app => <Link className="deadline-item" key={app.id} to={'/applications/' + app.id}><div className="deadline-opportunity"><strong>{app.company}</strong><span>{app.position}</span></div><span className="deadline-date">{formatDate(app.deadline)}</span><DeadlineBadge deadline={app.deadline} today={today} /></Link>) : <div className="quiet-state">No upcoming deadlines. Add an optional deadline when creating or editing an application.</div>}</section><UpcomingFollowUps applications={applications} today={today} /><section className="panel best-skills-panel"><div className="panel-heading"><div><h2>Best Skill Matches</h2><p>Opportunities that match the skills you already have.</p></div></div>{bestMatches.length ? bestMatches.map(({ application: app, match }) => <Link className="best-skill-item" key={app.id} to={'/applications/' + app.id}><div className="deadline-opportunity"><strong>{app.company}</strong><span>{app.position || 'Position not set'}</span></div><span className="skill-match-indicator">{match.percentage}% match</span></Link>) : <div className="quiet-state">Add required skills when creating or editing an application to see your best matches.</div>}</section></>
+
+  return <div className="dashboard-page">
+    <header className="dashboard-header">
+      <div>
+        <p className="dashboard-welcome">Welcome back</p>
+        <h1>Track your applications.<br /><span>Land your next opportunity.</span></h1>
+        <p className="dashboard-intro">Keep your internship search organized and know what needs your attention next.</p>
+      </div>
+      <Link className="button primary dashboard-add" to="/applications/new"><span aria-hidden="true">+</span> Add application</Link>
+    </header>
+
+    <div className="stats-grid" role="group" aria-label="Application statistics">
+      <StatCard label="Total applications" value={applications.length} symbol="↗" />
+      <StatCard label="Applied" value={counts.Applied} symbol="↗" tone="blue" />
+      <StatCard label="Interviews" value={counts.Interview} symbol="◷" tone="purple" />
+      <StatCard label="Offers" value={counts.Offer} symbol="✓" tone="green" />
+      <StatCard label="Rejected" value={counts.Rejected} symbol="−" tone="rose" />
+    </div>
+
+    <section className="panel dashboard-overview" aria-labelledby="dashboard-overview-title">
+      <div className="panel-heading">
+        <div><h2 id="dashboard-overview-title">Applications overview</h2><p>A clear view of where every opportunity stands.</p></div>
+        <Link className="subtle-link" to="/applications">All applications <span aria-hidden="true">↗</span></Link>
+      </div>
+      <div className="dashboard-overview-content">
+        <div className="dashboard-status-track" aria-hidden="true">
+          {STATUSES.map(status => counts[status] > 0 && <span key={status} className={'dashboard-status-segment status-' + status.toLowerCase()} style={{ flexGrow: counts[status] }} />)}
+        </div>
+        <ul className="dashboard-status-legend">
+          {STATUSES.map(status => <li key={status}><span className={'dashboard-status-dot status-' + status.toLowerCase()} aria-hidden="true" /><span>{status}</span><strong>{counts[status]}</strong></li>)}
+        </ul>
+        {!applications.length && <p className="dashboard-overview-empty">Add your first application to see your progress here.</p>}
+      </div>
+    </section>
+
+    <section className="panel recent-panel" aria-labelledby="dashboard-recent-title">
+      <div className="panel-heading">
+        <div><h2 id="dashboard-recent-title">Recent applications</h2><p>Your latest opportunities, all in one place.</p></div>
+        <Link className="subtle-link" to="/applications">View all <span aria-hidden="true">↗</span></Link>
+      </div>
+      {recent.length ? recent.map(app => <ApplicationCard key={app.id} application={app} compact />) : <EmptyState />}
+    </section>
+
+    <div className="dashboard-attention-grid">
+      <section className="panel upcoming-panel" aria-labelledby="dashboard-interviews-title">
+        <div className="panel-heading"><div><h2 id="dashboard-interviews-title">Upcoming Interviews</h2><p>Prepare for your next conversation.</p></div><span className="dashboard-section-count" aria-label={`${upcoming.length} upcoming interviews`}>{upcoming.length}</span></div>
+        {upcoming.length ? upcoming.map(({ application: app, interview }) => <Link className="interview-item" key={app.id} to={'/applications/' + app.id}>
+          <span className="interview-day">{Number(interview.date.slice(-2))}<small>{new Date(interview.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short' })}</small></span>
+          <div className="upcoming-interview-info">
+            <strong>{app.company}</strong><span>{app.position || 'Position not set'}</span>
+            <small>{formatDate(interview.date)}{interview.time && <> · {formatInterviewTime(interview.time)}</>}</small>
+            {(interview.stage || interview.type) && <span className="dashboard-interview-meta">{[interview.stage, interview.type].filter(Boolean).join(' · ')}</span>}
+            <InterviewBadge interview={interview} now={today} />
+          </div>
+          <span className="dashboard-item-arrow" aria-hidden="true">↗</span>
+        </Link>) : <div className="quiet-state"><span className="dashboard-empty-symbol" aria-hidden="true">◷</span><strong>No upcoming interviews</strong><p>Your next conversation will appear here when scheduled.</p></div>}
+      </section>
+
+      <section className="panel deadlines-panel" aria-labelledby="dashboard-deadlines-title">
+        <div className="panel-heading"><div><h2 id="dashboard-deadlines-title">Upcoming Deadlines</h2><p>Your next application deadlines, closest first.</p></div><span className="dashboard-section-count" aria-label={`${upcomingDeadlines.length} upcoming deadlines`}>{upcomingDeadlines.length}</span></div>
+        {upcomingDeadlines.length ? upcomingDeadlines.map(app => <Link className="deadline-item" key={app.id} to={'/applications/' + app.id}>
+          <div className="deadline-opportunity"><strong>{app.company}</strong><span>{app.position}</span></div>
+          <span className="deadline-date">{formatDate(app.deadline)}</span><DeadlineBadge deadline={app.deadline} today={today} />
+        </Link>) : <div className="quiet-state"><span className="dashboard-empty-symbol" aria-hidden="true">▦</span><strong>No upcoming deadlines</strong><p>Add an optional deadline when creating or editing an application.</p></div>}
+      </section>
+
+      <UpcomingFollowUps applications={applications} today={today} />
+
+      <section className="panel best-skills-panel" aria-labelledby="dashboard-skills-title">
+        <div className="panel-heading"><div><h2 id="dashboard-skills-title">Best Skill Matches</h2><p>Opportunities that match the skills you already have.</p></div></div>
+        {bestMatches.length ? bestMatches.map(({ application: app, match }) => <Link className="best-skill-item" key={app.id} to={'/applications/' + app.id}>
+          <div className="deadline-opportunity"><strong>{app.company}</strong><span>{app.position || 'Position not set'}</span></div><span className="skill-match-indicator">{match.percentage}% match</span>
+        </Link>) : <div className="quiet-state"><span className="dashboard-empty-symbol" aria-hidden="true">◇</span><strong>Find your strongest matches</strong><p>Add required skills when creating or editing an application to see your best matches.</p></div>}
+      </section>
+    </div>
+  </div>
 }
