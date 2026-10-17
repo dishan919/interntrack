@@ -1,6 +1,6 @@
 # InternTrack
 
-A beginner-friendly React application for tracking internship and job applications. Uses Vite, JavaScript, React Router, Context API, CSS, and browser localStorage. An independent Express backend provides a health check only; there is no authentication.
+A beginner-friendly React application for tracking internship and job applications. Uses Vite, JavaScript, React Router, Context API, CSS, and browser localStorage. An independent Express backend provides a health check and a temporary Applications REST API; there is no authentication.
 
 ## Run locally
 
@@ -39,7 +39,37 @@ npm run lint
 npm run build
 ```
 
-The backend lives in `server/src/app.js`, `server/src/server.js`, and `server/src/routes/healthRoutes.js`. It has no database or application CRUD routes.
+The backend separates routes, controllers, and temporary data in `server/src/`. It has no database.
+
+### Applications REST API
+
+Applications API data is currently stored in memory and resets when the backend restarts. The collection starts empty and is independent of browser localStorage.
+
+| Method | Endpoint | Success |
+| --- | --- | --- |
+| GET | `/api/health` | 200 health JSON |
+| GET | `/api/applications` | 200 array (including `[]`) |
+| GET | `/api/applications/:id` | 200 application |
+| POST | `/api/applications` | 201 created application |
+| PUT | `/api/applications/:id` | 200 replaced application |
+| DELETE | `/api/applications/:id` | 204, no response body |
+
+POST and PUT require non-empty string `company` and `position` values, which are trimmed. Status must be `Saved`, `Applied`, `Interview`, `Offer`, or `Rejected`; omitted status defaults to `Saved`. Invalid input returns JSON 400. Missing application IDs return JSON 404 with `Application not found`.
+
+PUT replaces all editable data: omitted optional fields are removed, and omitted status resets to `Saved`. Only `id` is server-managed: POST generates a UUID and PUT preserves it regardless of a client-supplied ID. Optional JSON fields (including interviews, skills, documents, activity, follow-ups, created date, and other metadata) are retained when supplied, without additional validation or generated timeline events in this step.
+
+Example PowerShell API flow with the backend running:
+
+```powershell
+$base = 'http://localhost:5000/api/applications'
+$body = @{ company = 'IFS'; position = 'Software Engineer Intern' } | ConvertTo-Json
+$app = Invoke-RestMethod $base -Method Post -ContentType 'application/json' -Body $body
+Invoke-RestMethod "$base/$($app.id)"
+$body = @{ company = 'IFS'; position = 'Software Engineer Intern'; status = 'Interview' } | ConvertTo-Json
+Invoke-RestMethod "$base/$($app.id)" -Method Put -ContentType 'application/json' -Body $body
+Invoke-RestMethod "$base/$($app.id)" -Method Delete
+Invoke-RestMethod $base
+```
 
 ## Frontend source structure
 
