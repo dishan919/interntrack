@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs'
+import { createAccessToken, getJwtSecret } from '../config/jwt.js'
 import User, { EMAIL_PATTERN, MIN_PASSWORD_LENGTH } from '../models/User.js'
 
 function validate(body) {
@@ -50,5 +51,14 @@ export async function login(req, res) {
   if (bcrypt.truncates(body.password)) return invalid()
   const user = await User.findOne({ email }).select('+password')
   if (!user || !await bcrypt.compare(body.password, user.password)) return invalid()
+  const secret = getJwtSecret()
+  if (!secret) return res.status(503).json({ message: 'Authentication is not configured' })
+  const accessToken = createAccessToken(user.id, secret)
+  return res.status(200).json({ user: { id: user.id, name: user.name, email: user.email }, accessToken })
+}
+
+export async function me(req, res) {
+  const user = await User.findById(req.auth.userId)
+  if (!user) return res.status(401).json({ message: 'Unauthorized' })
   return res.status(200).json({ user: { id: user.id, name: user.name, email: user.email } })
 }

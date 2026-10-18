@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { after, before, beforeEach, test } from 'node:test'
 import { once } from 'node:events'
 import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
+import authenticate from '../src/middleware/authenticate.js'
 import app from '../src/app.js'
 import User from '../src/models/User.js'
 import { connectDatabase, disconnectDatabase } from '../src/config/database.js'
@@ -11,8 +13,11 @@ let server
 let baseUrl
 let database
 const valid = { name: 'Dishan', email: 'dishan@example.com', password: 'StrongPassword123' }
+const testSecret = 'interntrack-disposable-tests-only-jwt-secret'
+const originalSecret = process.env.JWT_SECRET
 
 before(async () => {
+  process.env.JWT_SECRET = testSecret
   database = await startTestDatabase()
   await connectDatabase(database.getUri())
   server = app.listen(0, '127.0.0.1')
@@ -23,6 +28,8 @@ before(async () => {
 beforeEach(async () => { await User.deleteMany({}) })
 
 after(async () => {
+  if (originalSecret === undefined) delete process.env.JWT_SECRET
+  else process.env.JWT_SECRET = originalSecret
   if (server) await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
   await disconnectDatabase()
   if (database) await database.stop()
@@ -40,6 +47,99 @@ function login(body = { email: valid.email, password: valid.password }) {
   })
 }
 
+function currentUser(authorization) {
+  return fetch(baseUrl.replace('/register', '/me'), {
+    headers: authorization === undefined ? {} : { Authorization: authorization },
+  })
+}
+
+test('/me accepts a login token and returns only safe current user fields', async () => {
+  const registered = await (await register()).json()
+  const { accessToken } = await (await login()).json()
+  const stored = await User.collection.findOne({ email: valid.email })
+  const response = await currentUser(`Bearer ${accessToken}`)
+  assert.equal(response.status, 200)
+  const body = await response.json()
+  assert.deepEqual(body, registered)
+  assert.ok(!JSON.stringify(body).includes(valid.password))
+  assert.ok(!JSON.stringify(body).includes(stored.password))
+})
+
+for (const [label, authorization] of [
+  ['missing header', undefined], ['empty header', ''], ['wrong scheme', 'Basic abc'],
+  ['missing token', 'Bearer'], ['extra credentials', 'Bearer abc def'], ['invalid token', 'Bearer invalid'],
+]) {
+  test(`/me rejects ${label} with safe 401`, async () => {
+    const response = await currentUser(authorization)
+    assert.equal(response.status, 401)
+    assert.deepEqual(await response.json(), { message: 'Unauthorized' })
+  })
+}
+
+test('/me rejects expired, forged, unsigned, wrong-algorithm, and invalid-claim tokens', async () => {
+  const sub = '0123456789abcdef01234567'
+  const tokens = [
+    jwt.sign({ sub }, testSecret, { expiresIn: -1 }),
+    jwt.sign({ sub }, 'different-test-secret', { expiresIn: '1h' }),
+    jwt.sign({ sub }, null, { algorithm: 'none', expiresIn: '1h' }),
+    jwt.sign({ sub }, testSecret, { algorithm: 'HS384', expiresIn: '1h' }),
+    jwt.sign({}, testSecret, { expiresIn: '1h' }),
+    jwt.sign({ sub: 'invalid-id' }, testSecret, { expiresIn: '1h' }),
+    jwt.sign({ sub }, testSecret),
+  ]
+  for (const token of tokens) {
+    const response = await currentUser(`Bearer ${token}`)
+    assert.equal(response.status, 401)
+    assert.deepEqual(await response.json(), { message: 'Unauthorized' })
+  }
+})
+
+test('/me rejects a deleted token user', async () => {
+  await register()
+  const { accessToken } = await (await login()).json()
+  await User.deleteMany({})
+  const response = await currentUser(`Bearer ${accessToken}`)
+  assert.equal(response.status, 401)
+  assert.deepEqual(await response.json(), { message: 'Unauthorized' })
+})
+
+test('middleware exposes req.auth.userId without querying MongoDB', t => {
+  t.mock.method(User, 'findById', () => { throw new Error('Unexpected database query') })
+  const userId = '0123456789abcdef01234567'
+  const token = jwt.sign({}, testSecret, { subject: userId, expiresIn: '1h' })
+  const req = { get: () => `Bearer ${token}` }
+  let called = false
+  authenticate(req, {}, () => { called = true })
+  assert.equal(called, true)
+  assert.deepEqual(req.auth, { userId })
+})
+
+test('missing or blank JWT configuration fails safely without leaking secrets', async () => {
+  await register()
+  try {
+    for (const secret of [undefined, '   ']) {
+      if (secret === undefined) delete process.env.JWT_SECRET
+      else process.env.JWT_SECRET = secret
+      for (const response of [await login(), await currentUser('Bearer invalid')]) {
+        assert.equal(response.status, 503)
+        assert.deepEqual(await response.json(), { message: 'Authentication is not configured' })
+      }
+      const invalidLogin = await login({ email: valid.email, password: 'wrong' })
+      assert.equal(invalidLogin.status, 401)
+    }
+  } finally {
+    process.env.JWT_SECRET = testSecret
+  }
+})
+
+test('/me database errors return generic 500 responses', async t => {
+  t.mock.method(User, 'findById', () => { throw new Error('Private database diagnostic') })
+  const token = jwt.sign({}, testSecret, { subject: '0123456789abcdef01234567', expiresIn: '1h' })
+  const response = await currentUser(`Bearer ${token}`)
+  assert.equal(response.status, 500)
+  assert.deepEqual(await response.json(), { message: 'Internal server error' })
+})
+
 test('login verifies the registered bcrypt hash and returns only safe user fields', async t => {
   const registered = await (await register()).json()
   const stored = await User.collection.findOne({ email: valid.email })
@@ -49,7 +149,15 @@ test('login verifies the registered bcrypt hash and returns only safe user field
   const response = await login({ email: '  DISHAN@Example.COM  ', password: valid.password })
   assert.equal(response.status, 200)
   const body = await response.json()
-  assert.deepEqual(body, registered)
+  assert.deepEqual(body.user, registered.user)
+  assert.deepEqual(Object.keys(body).sort(), ['accessToken', 'user'])
+  const claims = jwt.verify(body.accessToken, testSecret, { algorithms: ['HS256'] })
+  assert.deepEqual(Object.keys(claims).sort(), ['exp', 'iat', 'sub'])
+  assert.equal(claims.sub, registered.user.id)
+  assert.equal(claims.exp - claims.iat, 3600)
+  assert.ok(claims.exp > Math.floor(Date.now() / 1000))
+  assert.ok(!JSON.stringify(claims).includes(valid.password))
+  assert.ok(!JSON.stringify(claims).includes(stored.password))
   assert.equal(compare.mock.callCount(), 1)
   assert.deepEqual(compare.mock.calls[0].arguments, [valid.password, stored.password])
   assert.ok(!JSON.stringify(body).includes(valid.password))
