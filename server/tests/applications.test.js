@@ -2,6 +2,9 @@ import assert from 'node:assert/strict'
 import { after, before, beforeEach, test } from 'node:test'
 import { once } from 'node:events'
 import app from '../src/app.js'
+import jwt from 'jsonwebtoken'
+import User from '../src/models/User.js'
+import { createAccessToken } from '../src/config/jwt.js'
 import Application from '../src/models/Application.js'
 import { connectDatabase, disconnectDatabase } from '../src/config/database.js'
 import { startTestDatabase } from './helpers/database.js'
@@ -9,11 +12,19 @@ import { startTestDatabase } from './helpers/database.js'
 let server
 let baseUrl
 let database
+let accessToken
+let userId
+const testSecret = 'feature04-disposable-test-secret'
+const originalSecret = process.env.JWT_SECRET
 const valid = { company: 'IFS', position: 'Software Engineer Intern' }
 
 before(async () => {
+  process.env.JWT_SECRET = testSecret
   database = await startTestDatabase()
   await connectDatabase(database.getUri())
+  const user = await User.create({ name: 'Test User', email: 'feature04@example.com', password: 'TestPassword123' })
+  userId = user.id
+  accessToken = createAccessToken(userId, testSecret)
   server = app.listen(0, '127.0.0.1')
   await once(server, 'listening')
   baseUrl = `http://127.0.0.1:${server.address().port}/api/applications`
@@ -22,6 +33,8 @@ before(async () => {
 // Only this disposable database is cleared; tests never connect to personal data.
 beforeEach(async () => { await Application.deleteMany({}) })
 after(async () => {
+  if (originalSecret === undefined) delete process.env.JWT_SECRET
+  else process.env.JWT_SECRET = originalSecret
   if (server) await new Promise((resolve, reject) => {
     server.close(error => error ? reject(error) : resolve())
   })
@@ -29,11 +42,11 @@ after(async () => {
   if (database) await database.stop()
 })
 
-function request(method = 'GET', path = '', body) {
+function request(method = 'GET', path = '', body, authorization = `Bearer ${accessToken}`) {
   return fetch(`${baseUrl}${path}`, {
     method,
+    headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(authorization === null ? {} : { Authorization: authorization }) },
     ...(body === undefined ? {} : {
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }),
   })
@@ -172,7 +185,8 @@ test('DELETE returns empty 204, removes only the target, and subsequent reads/de
 test('frontend REST service preserves nested metadata through MongoDB and status refreshes', async () => {
   const service = await import('../../src/services/applicationService.js')
   const originalFetch = globalThis.fetch
-  globalThis.fetch = (url, options) => originalFetch(url.replace('http://localhost:5000/api/applications', baseUrl), options)
+  // Test-only authentication transport; production frontend remains unchanged.
+  globalThis.fetch = (url, options) => originalFetch(url.replace('http://localhost:5000/api/applications', baseUrl), { ...options, headers: { ...options?.headers, Authorization: `Bearer ${accessToken}` } })
   try {
     const data = { ...valid, status: 'Applied', deadline: '2026-10-25', interview: { date: '2026-10-20', time: '10:30', notes: 'Prepare React' }, skills: { required: ['React'], matched: ['React'] }, documents: { resume: true, custom: { keep: true } }, activity: [{ id: 'event', type: 'created', message: 'Created', createdAt: '2026-10-01T09:00:00Z' }], followUp: { date: '2026-10-22', completed: false, note: 'Email HR' }, createdAt: '2026-10-01T09:00:00Z', updatedAt: '2026-10-02T09:00:00Z', custom: { nested: [null, { keep: true }] } }
     const created = await service.createApplication(data)
@@ -185,4 +199,38 @@ test('frontend REST service preserves nested metadata through MongoDB and status
     await service.deleteApplication(created.id)
     assert.deepEqual(await service.getApplications(), [])
   } finally { globalThis.fetch = originalFetch }
+})
+
+// With valid bodies and IDs, every controller reaches one of these model operations.
+// Spies prove failed authentication stops before that controller work.
+for (const [method, path] of [['GET', ''], ['GET', '/0123456789abcdef01234567'], ['POST', ''], ['PUT', '/0123456789abcdef01234567'], ['DELETE', '/0123456789abcdef01234567']]) {
+  test(`${method} ${path || '/'} rejects failed authentication before controller work`, async t => {
+    const spies = ['find', 'findById', 'create', 'exists', 'findOneAndReplace', 'findByIdAndDelete'].map(name =>
+      t.mock.method(Application, name, () => { throw new Error('Controller reached') }))
+    const expired = jwt.sign({}, testSecret, { subject: userId, expiresIn: -1 })
+    for (const authorization of [null, 'Bearer', 'Basic abc', 'Bearer abc def', 'Bearer invalid', `Bearer ${expired}`]) {
+      const response = await request(method, path, ['POST', 'PUT'].includes(method) ? valid : undefined, authorization)
+      assert.equal(response.status, 401)
+      assert.deepEqual(await response.json(), { message: 'Unauthorized' })
+    }
+    for (const spy of spies) assert.equal(spy.mock.callCount(), 0)
+  })
+}
+
+test('query tokens and client identity cannot replace a verified Bearer token', async () => {
+  const response = await request('POST', `?accessToken=${accessToken}&userId=${userId}`, { ...valid, userId }, null)
+  assert.equal(response.status, 401)
+  assert.deepEqual(await response.json(), { message: 'Unauthorized' })
+  assert.equal(await Application.countDocuments(), 0)
+})
+
+test('authenticated users intentionally share applications until ownership is implemented', async () => {
+  const created = await create()
+  const other = await User.create({ name: 'Other User', email: 'other@example.com', password: 'TestPassword123' })
+  const token = createAccessToken(other.id, testSecret)
+  const response = await request('GET', `/${created.id}`, undefined, `Bearer ${token}`)
+  assert.equal(response.status, 200)
+  assert.deepEqual(await response.json(), created)
+  assert.equal(Object.hasOwn(created, 'userId'), false)
+  assert.equal(Object.hasOwn(created, 'ownerId'), false)
 })

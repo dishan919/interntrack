@@ -5,11 +5,13 @@ import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { startTestDatabase } from './helpers/database.js'
 
+const testSecret = 'feature04-persistence-test-secret'
+
 const serverPath = fileURLToPath(new URL('../src/server.js', import.meta.url))
 
 async function startServer(uri) {
   const child = spawn(process.execPath, [serverPath], {
-    env: { ...process.env, PORT: '0', MONGODB_URI: uri },
+    env: { ...process.env, PORT: '0', MONGODB_URI: uri, JWT_SECRET: testSecret },
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -43,22 +45,29 @@ test('live MongoDB CRUD survives Express restarts, including updated metadata', 
   let server
   try {
     server = await startServer(database.getUri())
+    const credentials = { name: 'Persistence User', email: 'persistence@example.com', password: 'TestPassword123' }
+    const registered = await fetch(`${server.baseUrl}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(credentials) })
+    assert.equal(registered.status, 201)
+    const login = await fetch(`${server.baseUrl}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(credentials) })
+    assert.equal(login.status, 200)
+    const { accessToken } = await login.json()
+    const authorizedFetch = (url, options) => fetch(url, { ...options, headers: { ...options?.headers, Authorization: `Bearer ${accessToken}` } })
     const health = await fetch(`${server.baseUrl}/api/health`)
     assert.equal(health.status, 200)
     assert.deepEqual(await health.json(), { status: 'ok', message: 'InternTrack API is running' })
-    assert.deepEqual(await (await fetch(`${server.baseUrl}/api/applications`)).json(), [])
+    assert.deepEqual(await (await authorizedFetch(`${server.baseUrl}/api/applications`)).json(), [])
     const body = { company: 'IFS', position: 'Intern', skills: { required: ['React'], matched: [] } }
-    const post = await fetch(`${server.baseUrl}/api/applications`, {
+    const post = await authorizedFetch(`${server.baseUrl}/api/applications`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
     assert.equal(post.status, 201)
     const created = await post.json()
-    assert.deepEqual(await (await fetch(`${server.baseUrl}/api/applications/${created.id}`)).json(), created)
+    assert.deepEqual(await (await authorizedFetch(`${server.baseUrl}/api/applications/${created.id}`)).json(), created)
     await stopServer(server)
     server = await startServer(database.getUri())
     let url = `${server.baseUrl}/api/applications/${created.id}`
-    assert.deepEqual(await (await fetch(url)).json(), created)
-    const put = await fetch(url, {
+    assert.deepEqual(await (await authorizedFetch(url)).json(), created)
+    const put = await authorizedFetch(url, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, status: 'Interview', notes: 'Retained after restart' }),
     })
@@ -67,12 +76,12 @@ test('live MongoDB CRUD survives Express restarts, including updated metadata', 
     await stopServer(server)
     server = await startServer(database.getUri())
     url = `${server.baseUrl}/api/applications/${created.id}`
-    assert.deepEqual(await (await fetch(url)).json(), updated)
-    const deleted = await fetch(url, { method: 'DELETE' })
+    assert.deepEqual(await (await authorizedFetch(url)).json(), updated)
+    const deleted = await authorizedFetch(url, { method: 'DELETE' })
     assert.equal(deleted.status, 204)
     assert.equal(await deleted.text(), '')
-    assert.equal((await fetch(url)).status, 404)
-    assert.deepEqual(await (await fetch(`${server.baseUrl}/api/applications`)).json(), [])
+    assert.equal((await authorizedFetch(url)).status, 404)
+    assert.deepEqual(await (await authorizedFetch(`${server.baseUrl}/api/applications`)).json(), [])
   } finally {
     await stopServer(server)
     await database.stop()

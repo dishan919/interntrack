@@ -3,10 +3,15 @@ import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { JSDOM } from 'jsdom'
 import { createServer } from 'vite'
+import User from '../server/src/models/User.js'
+import { createAccessToken } from '../server/src/config/jwt.js'
 import app from '../server/src/app.js'
 import { connectDatabase, disconnectDatabase } from '../server/src/config/database.js'
 import { startTestDatabase } from '../server/tests/helpers/database.js'
 
+const originalFetch = globalThis.fetch
+const originalSecret = process.env.JWT_SECRET
+process.env.JWT_SECRET = "feature04-ui-smoke-test-secret"
 const database = await startTestDatabase()
 let backend, vite, root
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/applications/new' })
@@ -20,6 +25,10 @@ try {
   backend = app.listen(0, '127.0.0.1')
   await once(backend, 'listening')
   process.env.VITE_API_URL = `http://127.0.0.1:${backend.address().port}/api`
+  const user = await User.create({ name: 'Smoke User', email: 'smoke@example.com', password: 'TestPassword123' })
+  const token = createAccessToken(user.id, process.env.JWT_SECRET)
+  // Test-only transport supplies credentials without adding frontend token storage/UI.
+  globalThis.fetch = (url, options) => originalFetch(url, { ...options, headers: { ...options?.headers, Authorization: `Bearer ${token}` } })
   vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' })
   const { default: App } = await vite.ssrLoadModule('/src/App.jsx')
   const { createElement, act } = await import('react')
@@ -90,6 +99,9 @@ try {
   await act(async () => root.unmount())
   root = null
 } finally {
+  globalThis.fetch = originalFetch
+  if (originalSecret === undefined) delete process.env.JWT_SECRET
+  else process.env.JWT_SECRET = originalSecret
   if (vite) await vite.close()
   if (backend) await new Promise(resolve => backend.close(resolve))
   await disconnectDatabase()

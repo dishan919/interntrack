@@ -31,6 +31,7 @@ The backend requires Node.js 22.12+ and uses Node's built-in environment-file lo
 ```dotenv
 PORT=5000
 MONGODB_URI=mongodb://127.0.0.1:27017/interntrack
+JWT_SECRET=replace-with-a-long-random-development-secret
 ```
 
 Install MongoDB Community Server separately. If it is installed as a Windows service, start it with `Start-Service MongoDB` in an administrator PowerShell. Alternatively, with `mongod` on PATH, run the following from the repository folder in a separate terminal (keep the data directory between restarts):
@@ -59,6 +60,12 @@ Backend tests use development-only `mongodb-memory-server` to launch disposable 
 
 ### Applications REST API
 
+Feature 04/60 applies the existing `authenticate` middleware once with `router.use(authenticate)` before all application routes. Every application endpoint in the table below requires `Authorization: Bearer <accessToken>`. With JWT configuration present, missing/malformed headers and invalid/expired JWTs return HTTP 401 with `{ "message": "Unauthorized" }` before application controllers execute. Valid tokens continue to the existing controller and its normal success/validation/not-found behavior. Tokens in query parameters and client-supplied identity do not authenticate requests. Health remains public.
+
+**Ownership limitation:** authentication answers whether the request has a valid login token. Per-user application ownership/isolation is not implemented. All authenticated users can access the same collection; no owner fields or user filters have been added.
+
+The production frontend currently sends no JWTs, so application loading/mutations against the protected backend receive 401 and show the existing safe error UI. Login/Register UI, token storage, and automatic production Authorization headers are deferred. Frontend mock suites remain isolated; real API service/smoke checks inject signed test credentials only in their test transport.
+
 MongoDB is now used by the Express Applications API. Records survive backend restarts when using the same MongoDB database. The React frontend uses this API for application persistence. Legacy browser records are imported only on an explicit Settings action.
 
 | Method | Endpoint | Success |
@@ -76,17 +83,18 @@ PUT replaces all editable data: omitted optional fields are removed, and omitted
 
 The schema requires trimmed company/position strings and an allowed status. Optional JSON fields (including interviews, skills, documents, activity, follow-ups, created date, and other metadata) are retained using flexible schema fields without additional validation, date coercion, generated nested IDs, or generated timeline events. Only database identity is server-managed; `createdAt` remains optional editable metadata for Step 2 compatibility.
 
-Example PowerShell API flow with the backend running:
+Example PowerShell API flow with the backend running (first obtain `$accessToken` using the login example below):
 
 ```powershell
 $base = 'http://localhost:5000/api/applications'
+$headers = @{ Authorization = "Bearer $accessToken" }
 $body = @{ company = 'IFS'; position = 'Software Engineer Intern' } | ConvertTo-Json
-$app = Invoke-RestMethod $base -Method Post -ContentType 'application/json' -Body $body
-Invoke-RestMethod "$base/$($app.id)"
+$app = Invoke-RestMethod $base -Headers $headers -Method Post -ContentType 'application/json' -Body $body
+Invoke-RestMethod "$base/$($app.id)" -Headers $headers
 $body = @{ company = 'IFS'; position = 'Software Engineer Intern'; status = 'Interview' } | ConvertTo-Json
-Invoke-RestMethod "$base/$($app.id)" -Method Put -ContentType 'application/json' -Body $body
-Invoke-RestMethod "$base/$($app.id)" -Method Delete
-Invoke-RestMethod $base
+Invoke-RestMethod "$base/$($app.id)" -Headers $headers -Method Put -ContentType 'application/json' -Body $body
+Invoke-RestMethod "$base/$($app.id)" -Headers $headers -Method Delete
+Invoke-RestMethod $base -Headers $headers
 ```
 
 ## Registration API (Authentication Step 1)
@@ -117,9 +125,28 @@ $login = @{ email = 'test.user@example.com'; password = 'LocalTestPassword123' }
 Invoke-RestMethod 'http://localhost:5000/api/auth/login' -Method Post -ContentType 'application/json' -Body $login
 ```
 
-These are fictional development credentials. `POST /api/auth/login` trims and lowercases the email, explicitly selects the normally hidden password hash, and uses `bcrypt.compare()` with the exact submitted password. HTTP 200 returns only `{ "user": { "id": "...", "name": "Test User", "email": "test.user@example.com" } }`. Passwords and hashes are never returned or logged.
+These are fictional development credentials. `POST /api/auth/login` trims and lowercases the email, explicitly selects the normally hidden password hash, and uses `bcrypt.compare()` with the exact submitted password. As of Feature 03, HTTP 200 returns `{ "user": { "id": "...", "name": "Test User", "email": "test.user@example.com" }, "accessToken": "..." }`. Passwords and hashes are never returned or logged.
 
-Missing or invalid email and missing/blank/non-string passwords return 400. Unknown emails and incorrect passwords both return 401 with `{ "message": "Invalid email or password" }`. Passwords exceeding 72 UTF-8 bytes also return that 401 to prevent bcrypt truncation matches. Unexpected failures return generic 500 responses. This endpoint verifies credentials only; it creates no session or tokens and adds no frontend authentication, route protection, or application ownership. Existing application routes remain unchanged. Login and registration tests share the disposable MongoDB setup.
+Missing or invalid email and missing/blank/non-string passwords return 400. Unknown emails and incorrect passwords both return 401 with `{ "message": "Invalid email or password" }`. Passwords exceeding 72 UTF-8 bytes also return that 401 to prevent bcrypt truncation matches. Unexpected failures return generic 500 responses. Login and registration tests share the disposable MongoDB setup.
+
+## JWT access token foundation (Feature 03/60)
+
+Local token functionality requires `JWT_SECRET` in the ignored `server/.env` or environment. Replace the placeholder in `server/.env.example` with a long random development secret in your own `.env`; never commit that file or share the secret. No real secret is included in this repository. Restart the backend after configuration changes. Missing or blank configuration returns HTTP 503 with `Authentication is not configured` when issuing or verifying tokens; other API functionality remains available.
+
+After bcrypt verification, login uses [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) to sign an HS256 access token containing only `sub` (user id), `iat` (issued at), and `exp` (expiration), with a one-hour lifetime. The reusable `authenticate` middleware expects `Authorization: Bearer <token>`, verifies the signature with an explicit HS256 allowlist, checks expiration and required identity/time claims, and sets `req.auth.userId` without accessing MongoDB. Missing/malformed credentials and invalid/expired tokens return HTTP 401 with `Unauthorized`.
+
+`GET /api/auth/me` uses this middleware alongside the application router. It loads the current user by verified id and returns HTTP 200 with only `{ "user": { "id": "...", "name": "...", "email": "..." } }`; deleted/nonexistent users return the same safe 401. Database failures return generic 500 responses. Application routes require authentication as of Feature 04, with no ownership changes. No frontend authentication, browser token storage, refresh tokens, or logout is added.
+
+With the backend running and the fictional account above registered, manually log in, capture the access token, and verify it from PowerShell:
+
+```powershell
+$loginBody = @{ email = 'test.user@example.com'; password = 'LocalTestPassword123' } | ConvertTo-Json
+$loginResponse = Invoke-RestMethod 'http://localhost:5000/api/auth/login' -Method Post -ContentType 'application/json' -Body $loginBody
+$accessToken = $loginResponse.accessToken
+Invoke-RestMethod 'http://localhost:5000/api/auth/me' -Method Get -Headers @{ Authorization = "Bearer $accessToken" }
+```
+
+Run `npm --prefix server test` for registration, login, and JWT checks. Tests set a dedicated test-only JWT secret and use disposable MongoDB; they never depend on your development secret or personal database.
 
 ## Frontend source structure
 
@@ -230,3 +257,29 @@ npm test
 Frontend integration checks mount the real provider in jsdom to exercise asynchronous React effects, then retain the existing UI rendering/drag-handler assertions. Service tests cover safe HTTP/network/JSON failures and resumable explicit migration. Backend tests include frontend-service CRUD and nested metadata through a disposable real MongoDB database. No test reads your personal MongoDB database. The development smoke sequence can be run with the local commands above: create, refresh, edit, refresh, change board status, refresh, delete, refresh.
 
 `npm run test:smoke` drives the real React DOM in jsdom through create/refresh/edit/refresh/board-status/refresh/delete/refresh with the actual Express API and disposable MongoDB. It starts and stops all test resources automatically; it is not a real-browser pointer test.
+
+## Feature 04 manual authentication check
+
+With the backend running, JWT_SECRET configured, and the fictional `test.user@example.com` account registered using the registration example above:
+
+```powershell
+# 1. Login; keep the returned token in memory without printing it.
+$api = 'http://localhost:5000/api'
+$loginBody = @{ email = 'test.user@example.com'; password = 'LocalTestPassword123' } | ConvertTo-Json
+$loginResponse = Invoke-RestMethod "$api/auth/login" -Method Post -ContentType 'application/json' -Body $loginBody
+$accessToken = $loginResponse.accessToken
+
+# 2. No token: expect 401 (works with Windows PowerShell and PowerShell 7).
+try {
+    Invoke-RestMethod "$api/applications" -Method Get
+    throw 'Expected HTTP 401'
+} catch {
+    if ($null -eq $_.Exception.Response) { throw }
+    $status = [int]$_.Exception.Response.StatusCode
+    if ($status -ne 401) { throw }
+    Write-Output "Confirmed HTTP $status"
+}
+
+# 3. Valid Bearer token: expect 200 and the shared collection (possibly empty).
+Invoke-RestMethod "$api/applications" -Method Get -Headers @{ Authorization = "Bearer $accessToken" }
+```
