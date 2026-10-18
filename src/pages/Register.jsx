@@ -13,6 +13,7 @@ const fields = [
 
 export default function Register() {
   const [values, setValues] = useState(empty)
+  const [visible, setVisible] = useState({ password: false, confirmPassword: false })
   const [errors, setErrors] = useState({})
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
@@ -55,11 +56,19 @@ export default function Register() {
           {error && <div className="notice error" role="alert">{error}</div>}
           {fields.map(field => <div className="register-field" key={field.name}>
             <label htmlFor={`register-${field.name}`}>{field.label}</label>
-            <input {...field} id={`register-${field.name}`} required disabled={pending}
+            <div className="register-input-wrap">
+            <input {...field} type={field.type === 'password' && visible[field.name] ? 'text' : field.type} id={`register-${field.name}`} required disabled={pending}
               minLength={field.type === 'password' ? 8 : undefined}
               value={values[field.name]} aria-invalid={Boolean(errors[field.name])}
               aria-describedby={errors[field.name] ? `${field.name}-error` : field.name === 'password' ? 'password-hint' : undefined}
               onChange={event => setValues({ ...values, [field.name]: event.target.value })} />
+            {field.type === 'password' && <button type="button" className="register-visibility" disabled={pending}
+              aria-label={`${visible[field.name] ? 'Hide' : 'Show'} ${field.name === 'confirmPassword' ? 'confirm password' : 'password'}`}
+              aria-controls={`register-${field.name}`}
+              onClick={() => setVisible(current => ({ ...current, [field.name]: !current[field.name] }))}>
+              {visible[field.name] ? 'Hide' : 'Show'}
+            </button>}
+            </div>
             {errors[field.name] ? <span className="register-error" id={`${field.name}-error`} role="alert">{errors[field.name]}</span>
               : field.name === 'password' && <span id="password-hint" className="register-hint">Use at least 8 characters.</span>}
           </div>)}

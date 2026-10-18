@@ -64,8 +64,35 @@ export default async function verify() {
     assert.match(container.textContent, /Passwords must match/)
     assert.equal(calls.length, 0)
     await fill()
+    // Real native button activation must toggle independently without submitting.
+    let submits = 0
+    container.querySelector('form').addEventListener('submit', () => { submits++ })
+    async function toggle(label) {
+      const button = container.querySelector(`button[aria-label="${label}"]`)
+      assert.ok(button)
+      assert.equal(button.type, 'button')
+      assert.equal(button.tabIndex, 0)
+      await act(async () => button.click())
+    }
+    const password = container.querySelector('[name="password"]')
+    const confirmation = container.querySelector('[name="confirmPassword"]')
+    await toggle('Show password')
+    assert.equal(password.type, 'text')
+    assert.equal(confirmation.type, 'password')
+    await toggle('Show confirm password')
+    assert.equal(password.type, 'text')
+    assert.equal(confirmation.type, 'text')
+    await toggle('Hide password')
+    assert.equal(password.type, 'password')
+    assert.equal(confirmation.type, 'text')
+    await toggle('Hide confirm password')
+    assert.equal(confirmation.type, 'password')
+    assert.equal(password.value, 'Password123')
+    assert.equal(confirmation.value, 'Password123')
+    assert.equal(submits, 0)
+    assert.equal(calls.length, 0)
     await submit()
-    assert.equal(container.querySelector('button').disabled, true)
+    assert.equal(container.querySelector('button[type="submit"]').disabled, true)
     assert.match(container.textContent, /Creating account/)
     await submit()
     assert.equal(calls.length, 1)
@@ -83,12 +110,12 @@ export default async function verify() {
     await act(async () => respond(new Response('{"message":"private internals"}', { status: 409 })))
     assert.match(container.querySelector('[role="alert"]').textContent, /account with this email already exists/)
     assert.doesNotMatch(container.textContent, /private internals/)
-    assert.equal(container.querySelector('button').disabled, false)
+    assert.equal(container.querySelector('button[type="submit"]').disabled, false)
     globalThis.fetch = async () => { throw new Error('private network diagnostic') }
     await submit()
     assert.match(container.querySelector('[role="alert"]').textContent, /Check your connection/)
     assert.doesNotMatch(container.textContent, /private network diagnostic/)
-    return 'PASS: public register route, accessible fields, validation, exact API payload, duplicate-submit guard, success without login/storage, safe duplicate and network errors'
+    return 'PASS: public register route, accessible fields, independent Show/Hide controls without submission, validation, exact API payload, duplicate-submit guard, success without login/storage, safe duplicate and network errors'
   } finally {
     if (root) await act(async () => root.unmount())
     globalThis.fetch = originalFetch

@@ -17,3 +17,9 @@
 .register-success p { margin-top: 8px; }
 .register-footer { margin-top: 24px; font-size: 12px; }
 @media (max-width: 480px) { .register-page { padding: 24px 16px; } .register-card { padding: 26px 22px; } }
+
+.register-input-wrap { position: relative; }
+.register-input-wrap:has(.register-visibility) input { padding-right: 74px; }
+.register-visibility { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); min-width: 60px; min-height: 38px; padding: 8px; border: 0; border-radius: 6px; background: transparent; color: var(--link); font-size: 12px; font-weight: 600; }
+.register-visibility:hover:not(:disabled) { background: var(--accent-soft); }
+.register-visibility:focus-visible { outline: 2px solid var(--link); outline-offset: 0; }
