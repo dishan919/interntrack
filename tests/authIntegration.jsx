@@ -142,7 +142,7 @@ export default async function verify() {
     // All workspace paths are private. Public pages cause no protected API calls.
     window.sessionStorage.clear()
     calls.length = 0
-    for (const path of ['', 'applications', 'applications/new', 'applications/id', 'applications/id/edit', 'companies', 'statistics', 'settings']) {
+    for (const path of ['', 'applications', 'applications/new', 'applications/id', 'applications/id/edit', 'companies', 'statistics', 'settings', 'profile']) {
       await mountApp(path)
       assert.equal(window.location.pathname, `${base}login`)
       assert.match(container.querySelector('h1').textContent, /Sign in to InternTrack/)

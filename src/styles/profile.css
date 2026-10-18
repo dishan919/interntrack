@@ -1,0 +1,9 @@
+.profile-panel { max-width: 780px; }
+.profile-fields { margin: 0; padding: 0 28px; }
+.profile-fields > div { padding: 24px 0; border-bottom: 1px solid var(--border); }
+.profile-fields dt { margin-bottom: 8px; color: var(--muted); font-size: 13px; }
+.profile-fields dd { margin: 0; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+.profile-note { margin-top: 20px; color: var(--muted); font-size: 13px; }
+@media (max-width: 640px) {
+  .profile-fields { padding: 0 20px; }
+}

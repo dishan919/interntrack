@@ -11,6 +11,7 @@ import Statistics from './pages/Statistics'
 import Settings from './pages/Settings'
 import Register from './pages/Register'
 import Login from './pages/Login'
+import Profile from './pages/Profile'
 export default function App() {
   return <BrowserRouter basename={import.meta.env.BASE_URL}><AuthProvider><Routes>
     <Route path="login" element={<Login />} />
@@ -24,6 +25,7 @@ export default function App() {
       <Route path="companies" element={<Companies />} />
       <Route path="statistics" element={<Statistics />} />
       <Route path="settings" element={<Settings />} />
+      <Route path="profile" element={<Profile />} />
       <Route path="*" element={<div className="empty-state"><h1>Page not found</h1><Link className="button primary" to="/">Back to dashboard</Link></div>} />
     </Route>
   </Routes></AuthProvider></BrowserRouter>

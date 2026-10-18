@@ -1,5 +1,9 @@
 # InternTrack
 
+## User profile (Feature 09/60)
+
+Authenticated users can view their name and email on the protected `/profile` route (`/interntrack/profile` with the configured Vite base). Open **Profile** in the Student Workspace account menu. The page reads the verified user from AuthContext and reuses its existing Sign out action. Refresh restores the session through AuthProvider; Profile makes no additional `/api/auth/me` request. Logged-out visitors are redirected to login. Profile editing is not implemented yet.
+
 A beginner-friendly React application for tracking internship and job applications. Uses Vite, JavaScript, React Router, Context API, CSS, and a MongoDB-backed Express REST API with backend registration and login credential verification.
 
 ## Run locally

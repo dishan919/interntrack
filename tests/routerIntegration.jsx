@@ -39,7 +39,7 @@ export default async function verify() {
       ['', 'Track your applications.'], ['register', 'Create your account'], ['login', 'Sign in to InternTrack'],
       ['applications', 'Applications'], ['applications/new', 'Add application'],
       ['applications/route-test', 'Routing Intern'], ['applications/route-test/edit', 'Edit application'],
-      ['companies', 'Companies'], ['statistics', 'Statistics'], ['settings', 'Settings'],
+      ['companies', 'Companies'], ['statistics', 'Statistics'], ['settings', 'Settings'], ['profile', 'Profile'],
     ]) {
       await visit(path)
       assert.ok(container.querySelector('h1')?.textContent.includes(heading), `Route ${base}${path} should show ${heading}`)
