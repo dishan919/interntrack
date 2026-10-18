@@ -1,0 +1,36 @@
+import mongoose from 'mongoose'
+import bcrypt from 'bcryptjs'
+
+export const MIN_PASSWORD_LENGTH = 8
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true, maxlength: 120 },
+  email: {
+    type: String, required: true, trim: true, lowercase: true,
+    unique: true, maxlength: 254, match: EMAIL_PATTERN,
+  },
+  password: {
+    type: String, required: true, select: false, minlength: MIN_PASSWORD_LENGTH,
+    validate: value => typeof value === 'string' && Boolean(value.trim()) && !bcrypt.truncates(value),
+  },
+}, {
+  timestamps: true,
+  versionKey: false,
+  bufferCommands: false,
+  toJSON: {
+    transform(_doc, result) {
+      result.id = result._id.toString()
+      delete result._id
+      delete result.password
+      return result
+    },
+  },
+})
+
+// Validation runs before this hook. Never trim passwords or hash an unchanged hash.
+userSchema.pre('save', async function () {
+  if (this.isModified('password')) this.password = await bcrypt.hash(this.password, 12)
+})
+
+export default mongoose.model('User', userSchema)

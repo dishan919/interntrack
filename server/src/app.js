@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import healthRoutes from './routes/healthRoutes.js'
 import applicationRoutes from './routes/applicationRoutes.js'
+import authRoutes from './routes/authRoutes.js'
 
 const app = express()
 
@@ -10,6 +11,7 @@ app.use(express.json())
 
 app.use('/api/health', healthRoutes)
 app.use('/api/applications', applicationRoutes)
+app.use('/api/auth', authRoutes)
 
 app.use((_req, res) => {
   res.status(404).json({ message: 'Route not found' })

@@ -89,6 +89,25 @@ Invoke-RestMethod "$base/$($app.id)" -Method Delete
 Invoke-RestMethod $base
 ```
 
+## Registration API (Authentication Step 1)
+
+With MongoDB and the backend running, create a local test user from PowerShell:
+
+```powershell
+$registration = @{
+  name = 'Test User'
+  email = 'test.user@example.com'
+  password = 'LocalTestPassword123'
+} | ConvertTo-Json
+Invoke-RestMethod 'http://localhost:5000/api/auth/register' -Method Post -ContentType 'application/json' -Body $registration
+```
+
+Use test data for this local example. `POST /api/auth/register` returns HTTP 201 with only `{ "user": { "id": "...", "name": "Test User", "email": "test.user@example.com" } }`. Names are trimmed (maximum 120 characters); emails are trimmed, lowercased, format-checked, and unique (maximum 254 characters). Passwords require at least 8 characters, cannot be entirely whitespace, and must fit within 72 UTF-8 bytes; passwords are preserved exactly rather than trimmed.
+
+The User model stores only name, email, a salted bcrypt password hash, and created/updated timestamps. [bcryptjs](https://github.com/dcodeIO/bcrypt.js/) hashes new or changed passwords before saving with cost 12. Passwords are excluded from default queries and JSON serialization; the endpoint explicitly returns only safe user fields. Invalid registration data returns 400, duplicate normalized email returns 409 (including concurrent registrations), and unexpected server failures return a generic 500. No new environment variables or secrets are required.
+
+This step adds registration only: no login, tokens, frontend authentication, or application ownership changes. Existing application routes remain unchanged. Registration tests run with `npm --prefix server test` and use the existing disposable MongoDB setup.
+
 ## Frontend source structure
 
 - src/components/common: shared badges, cards, search, filters, empty states.
