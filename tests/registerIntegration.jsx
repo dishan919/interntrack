@@ -49,7 +49,7 @@ export default async function verify() {
     }
     assert.equal(container.querySelector('[name="password"]').type, 'password')
     assert.equal(container.querySelector('[name="confirmPassword"]').type, 'password')
-    assert.equal(container.querySelector('a[href="/login"]'), null)
+    assert.ok(container.querySelector(`a[href="${import.meta.env.BASE_URL}login"]`))
     await submit()
     assert.equal(container.querySelectorAll('[aria-invalid="true"]').length, 4)
     assert.equal(document.activeElement.name, 'name')

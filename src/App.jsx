@@ -10,8 +10,10 @@ import Companies from './pages/Companies'
 import Statistics from './pages/Statistics'
 import Settings from './pages/Settings'
 import Register from './pages/Register'
+import Login from './pages/Login'
 export default function App() {
   return <BrowserRouter basename={import.meta.env.BASE_URL}><Routes>
+    <Route path="login" element={<Login />} />
     <Route path="register" element={<Register />} />
     <Route element={<ApplicationProvider><Layout /></ApplicationProvider>}>
       <Route index element={<Dashboard />} />

@@ -5,7 +5,7 @@ globalThis.document = dom.window.document
 const { createServer } = await import('vite')
 const server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' })
 try {
-  for (const name of ['registerIntegration', 'routerIntegration']) {
+  for (const name of ['registerIntegration', 'loginIntegration', 'routerIntegration']) {
     const { default: verify } = await server.ssrLoadModule(`/tests/${name}.jsx`)
     console.log(await verify())
   }

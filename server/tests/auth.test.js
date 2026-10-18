@@ -334,3 +334,17 @@ test('unexpected database errors return generic 500 responses without diagnostic
   assert.deepEqual(await response.json(), { message: 'Internal server error' })
   assert.equal(await User.countDocuments(), 0)
 })
+
+// Exercise the actual frontend login service against Express and disposable MongoDB.
+test('frontend login service verifies real registered credentials through the existing API', async t => {
+  await register()
+  const { login: frontendLogin } = await import('../../src/services/authService.js')
+  const originalFetch = globalThis.fetch
+  t.mock.method(globalThis, 'fetch', (url, options) => originalFetch(
+    url.replace('http://localhost:5000/api/auth/login', baseUrl.replace('/register', '/login')), options,
+  ))
+  const result = await frontendLogin({ email: valid.email, password: valid.password })
+  assert.equal(result.user.email, valid.email)
+  assert.equal(jwt.verify(result.accessToken, testSecret, { algorithms: ['HS256'] }).sub, result.user.id)
+  await assert.rejects(frontendLogin({ email: valid.email, password: 'WrongPassword123' }), { message: 'Invalid email or password' })
+})

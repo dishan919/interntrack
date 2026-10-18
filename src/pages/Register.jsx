@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { register } from '../services/authService'
 import { validateRegistration } from '../utils/registration'
 import '../styles/register.css'
@@ -51,7 +52,7 @@ export default function Register() {
       <div className="register-eyebrow">YOUR NEXT CHAPTER</div>
       <h1 id="register-heading">Create your account</h1>
       <p>One place to organize your applications and keep your next move in sight.</p>
-      {user ? <div className="register-success" role="status"><h2>Account created successfully.</h2><p>Thanks, {user.name}. Your account is ready. Sign in will be available in a future update.</p></div>
+      {user ? <div className="register-success" role="status"><h2>Account created successfully.</h2><p>Thanks, {user.name}. Your account is ready. You can now sign in.</p></div>
         : <form ref={formRef} onSubmit={submit} noValidate aria-busy={pending}>
           {error && <div className="notice error" role="alert">{error}</div>}
           {fields.map(field => <div className="register-field" key={field.name}>
@@ -75,7 +76,7 @@ export default function Register() {
           <button className="button primary register-submit" type="submit" disabled={pending}>{pending ? 'Creating account...' : 'Create account'}</button>
           {pending && <span className="register-hint" role="status">Creating your account...</span>}
         </form>}
-      <p className="register-login">Already have an account? <span>Sign in - coming soon</span></p>
+      <p className="register-login">Already have an account? <Link to="/login">Sign in</Link></p>
     </section>
     <p className="register-footer">Made for your next move.</p>
   </main>

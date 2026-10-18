@@ -66,7 +66,7 @@ Feature 04/60 applies the existing `authenticate` middleware once with `router.u
 
 **Legacy development data:** existing ownerless applications remain in MongoDB unchanged, but no user can list, read, update, delete, or claim them through this API. Adding a required schema field does not backfill existing documents. No automatic assignment or migration runs. For local recovery, keep a backup, review the records outside the API, and explicitly recreate selected editable application data through authenticated POST requests for the intended account. The backend assigns the new owner and ID; old records remain inaccessible. No personal database is modified by tests.
 
-The production frontend currently sends no JWTs, so application loading/mutations against the protected backend receive 401 and show the existing safe error UI. Registration UI is available at `/register` as of Feature 06. Login UI, token storage, and automatic production Authorization headers are deferred. Frontend mock suites remain isolated; real API service/smoke checks inject signed test credentials only in their test transport.
+The production frontend currently sends no JWTs, so application loading/mutations against the protected backend receive 401 and show the existing safe error UI. Registration UI is available at `/register` as of Feature 06. Login UI is available at `/login` as of Feature 07. Token storage and automatic production Authorization headers are deferred. Frontend mock suites remain isolated; real API service/smoke checks inject signed test credentials only in their test transport.
 
 MongoDB is now used by the Express Applications API. Records survive backend restarts when using the same MongoDB database. The React frontend uses this API for application persistence. Legacy browser records are imported only on an explicit Settings action.
 
@@ -137,7 +137,7 @@ Local token functionality requires `JWT_SECRET` in the ignored `server/.env` or 
 
 After bcrypt verification, login uses [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) to sign an HS256 access token containing only `sub` (user id), `iat` (issued at), and `exp` (expiration), with a one-hour lifetime. The reusable `authenticate` middleware expects `Authorization: Bearer <token>`, verifies the signature with an explicit HS256 allowlist, checks expiration and required identity/time claims, and sets `req.auth.userId` without accessing MongoDB. Missing/malformed credentials and invalid/expired tokens return HTTP 401 with `Unauthorized`.
 
-`GET /api/auth/me` uses this middleware alongside the application router. It loads the current user by verified id and returns HTTP 200 with only `{ "user": { "id": "...", "name": "...", "email": "..." } }`; deleted/nonexistent users return the same safe 401. Database failures return generic 500 responses. Application routes require authentication as of Feature 04, with per-user ownership enforced as of Feature 05. No frontend authentication, browser token storage, refresh tokens, or logout is added.
+`GET /api/auth/me` uses this middleware alongside the application router. It loads the current user by verified id and returns HTTP 200 with only `{ "user": { "id": "...", "name": "...", "email": "..." } }`; deleted/nonexistent users return the same safe 401. Database failures return generic 500 responses. Application routes require authentication as of Feature 04, with per-user ownership enforced as of Feature 05. Frontend registration/login UI is described below; browser token storage, refresh tokens, and logout remain deferred.
 
 With the backend running and the fictional account above registered, manually log in, capture the access token, and verify it from PowerShell:
 
@@ -332,15 +332,40 @@ Feature 05 regression checks use two disposable users to verify isolated lists, 
 
 ## Frontend registration (Feature 06/60)
 
-Open `/register` to create an account using the existing `POST /api/auth/register` endpoint. This public page runs outside the application-data provider, so protected application API requests cannot block registration. Name, email, password, and matching confirmation are validated locally; backend validation remains authoritative. The auth service uses `VITE_API_URL` (default `http://localhost:5000/api`), sends only name/email/password, and displays safe validation, duplicate-email, and connection errors.
+Open `/interntrack/register` to create an account using the existing `POST /api/auth/register` endpoint. This public page runs outside the application-data provider, so protected application API requests cannot block registration. Name, email, password, and matching confirmation are validated locally; backend validation remains authoritative. The auth service uses `VITE_API_URL` (default `http://localhost:5000/api`), sends only name/email/password, and displays safe validation, duplicate-email, and connection errors.
 
-Submission disables controls and prevents duplicate requests. Success displays ?Account created successfully.? and clears password fields. It does not log in, store tokens/passwords, or create authentication state. ?Sign in ? coming soon? is a non-navigation placeholder; frontend login and token management are intentionally deferred.
+Submission disables controls and prevents duplicate requests. Success displays ?Account created successfully.? and clears password fields. It does not log in, store tokens/passwords, or create authentication state. The Sign in link opens `/login`; token management remains intentionally deferred.
 
 Manual test from the repository folder:
 
 1. If dependencies are not installed, run `npm install` and `npm --prefix server install`.
 2. Configure `server/.env` from `server/.env.example` with your development MongoDB URI and JWT secret, and start MongoDB.
 3. Run `npm --prefix server run dev` in one PowerShell terminal.
-4. In another, run `npm run dev` and open `http://localhost:5173/register` (or the port Vite prints).
+4. In another, run `npm run dev` and open `http://localhost:5173/interntrack/register` (or the port Vite prints).
 5. Submit empty fields; try an invalid email, short password, and mismatched confirmation. Correct them and use a fresh fictional address such as `register.demo@example.com` with a password of at least eight characters. Confirm the success message without navigation or automatic login.
 6. Reload `/register`, submit the same email, and confirm the duplicate-email message. Stop the backend and submit a valid form to check the friendly connection error. No password or token should appear in browser storage.
+
+## Frontend login (Feature 07/60)
+
+Open `/interntrack/login` with the configured Vite base (`/login` relative to `import.meta.env.BASE_URL`). Login and registration are public routes outside application-data loading; each page links to the other through React Router. The Login page reuses the responsive registration card, controls, and accessible Show/Hide password styling.
+
+Email and password are required, email format is checked, and passwords require at least eight characters. Email is trimmed; passwords retain their exact whitespace. `authService.login()` calls the real existing `POST /api/auth/login` using `VITE_API_URL` (default `http://localhost:5000/api`). Backend validation and bcrypt verification remain authoritative. Missing/incorrect credentials display safe feedback; network/server failures show friendly messages without backend diagnostics. Submission disables controls and prevents duplicate requests.
+
+Successful login shows ?Signed in successfully.? and clears the password. The service returns the existing safe user/accessToken contract in memory; the page retains only safe user details. It does not display, log, or persist the JWT/password, create AuthContext, redirect to the dashboard, or add automatic Authorization headers. Refreshing starts a fresh form. Application API authentication and ownership remain enforced.
+
+Manual test from the repository folder:
+
+```powershell
+# Terminal 1: MongoDB running; server/.env configured.
+npm --prefix server run dev
+# Terminal 2:
+npm run dev
+```
+
+1. Open `http://localhost:5173/interntrack/register` (use Vite's printed port if different) and register a fresh fictional account such as `login.demo@example.com`.
+2. Follow Sign in to `http://localhost:5173/interntrack/login`. Check empty fields, an invalid email, a short password, and Show/Hide without submission.
+3. Submit an incorrect password of at least eight characters and confirm ?Invalid email or password?. Stop the backend temporarily to verify the friendly connection error.
+4. Restart the backend and submit the correct credentials. Confirm success on the same URL, cleared password fields, no token displayed, and no password/token written to localStorage or sessionStorage. Refresh to confirm a fresh form.
+5. Follow Create an account to return to registration. Existing dashboard/application routes retain their configured basename and protected API behavior.
+
+Focused tests cover login validation, the service request/response contract, safe errors and malformed responses, real input and visibility controls, duplicate submission, success without persistence/redirect, auth links under the basename, and the frontend login service against the real Express API using disposable MongoDB. Run `npm test`, `npm run test:integration`, `npm --prefix server test`, `npm run test:smoke`, `npm run lint`, and `npm run build`.

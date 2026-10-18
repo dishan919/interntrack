@@ -32,3 +32,30 @@ export async function register({ name, email, password }) {
   const { id, name: userName, email: userEmail } = data.user
   return { user: { id, name: userName, email: userEmail } }
 }
+
+export async function login({ email, password }) {
+  let response
+  try {
+    response = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim(), password }),
+    })
+  } catch {
+    throw new Error('Unable to reach the server. Check your connection and try again.')
+  }
+  if (response.status === 401) throw new Error('Invalid email or password')
+  if (!response.ok) {
+    throw new Error(response.status === 400
+      ? 'Please check your email and password and try again.'
+      : 'Unable to sign in right now. Please try again.')
+  }
+  let data
+  try { data = await response.json() } catch { throw new Error('The server returned an invalid response. Please try again.') }
+  if (!data?.user || !['id', 'name', 'email'].every(key => typeof data.user[key] === 'string')
+    || typeof data.accessToken !== 'string' || !data.accessToken.trim()) {
+    throw new Error('The server returned an invalid response. Please try again.')
+  }
+  const { id, name, email: userEmail } = data.user
+  // Return the existing API contract in memory only; no storage or logging.
+  return { user: { id, name, email: userEmail }, accessToken: data.accessToken }
+}

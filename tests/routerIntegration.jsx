@@ -30,7 +30,7 @@ export default async function verify() {
   }
   try {
     for (const [path, heading] of [
-      ['', 'Track your applications.'], ['register', 'Create your account'],
+      ['', 'Track your applications.'], ['register', 'Create your account'], ['login', 'Sign in to InternTrack'],
       ['applications', 'Applications'], ['applications/new', 'Add application'],
       ['applications/route-test', 'Routing Intern'], ['applications/route-test/edit', 'Edit application'],
       ['companies', 'Companies'], ['statistics', 'Statistics'], ['settings', 'Settings'],
@@ -39,6 +39,11 @@ export default async function verify() {
       assert.ok(container.querySelector('h1')?.textContent.includes(heading), `Route ${base}${path} should show ${heading}`)
       assert.doesNotMatch(container.textContent, /Page not found/)
     }
+    await visit('register')
+    await click('login')
+    assert.equal(container.querySelector('h1').textContent, 'Sign in to InternTrack')
+    await click('register')
+    assert.equal(container.querySelector('h1').textContent, 'Create your account')
     await visit('')
     await click('applications')
     assert.equal(container.querySelector('h1').textContent, 'Applications')
