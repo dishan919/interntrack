@@ -62,7 +62,9 @@ Backend tests use development-only `mongodb-memory-server` to launch disposable 
 
 Feature 04/60 applies the existing `authenticate` middleware once with `router.use(authenticate)` before all application routes. Every application endpoint in the table below requires `Authorization: Bearer <accessToken>`. With JWT configuration present, missing/malformed headers and invalid/expired JWTs return HTTP 401 with `{ "message": "Unauthorized" }` before application controllers execute. Valid tokens continue to the existing controller and its normal success/validation/not-found behavior. Tokens in query parameters and client-supplied identity do not authenticate requests. Health remains public.
 
-**Ownership limitation:** authentication answers whether the request has a valid login token. Per-user application ownership/isolation is not implemented. All authenticated users can access the same collection; no owner fields or user filters have been added.
+**Ownership (Feature 05/60):** every newly created application has a required, indexed `owner` ObjectId reference to `User`. The backend assigns it exclusively from verified `req.auth.userId`; body/query `owner`, `ownerId`, and `userId` cannot select or change ownership. Normal JSON responses omit `owner` to preserve the API shape. All list queries filter by owner; single-record reads, replacement updates, and deletes match both `_id` and owner. Cross-user access returns the same HTTP 404 `{ "message": "Application not found" }` as a missing record, including update requests with invalid fields. PUT preserves ownership while retaining its existing replacement semantics for editable fields.
+
+**Legacy development data:** existing ownerless applications remain in MongoDB unchanged, but no user can list, read, update, delete, or claim them through this API. Adding a required schema field does not backfill existing documents. No automatic assignment or migration runs. For local recovery, keep a backup, review the records outside the API, and explicitly recreate selected editable application data through authenticated POST requests for the intended account. The backend assigns the new owner and ID; old records remain inaccessible. No personal database is modified by tests.
 
 The production frontend currently sends no JWTs, so application loading/mutations against the protected backend receive 401 and show the existing safe error UI. Login/Register UI, token storage, and automatic production Authorization headers are deferred. Frontend mock suites remain isolated; real API service/smoke checks inject signed test credentials only in their test transport.
 
@@ -135,7 +137,7 @@ Local token functionality requires `JWT_SECRET` in the ignored `server/.env` or 
 
 After bcrypt verification, login uses [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) to sign an HS256 access token containing only `sub` (user id), `iat` (issued at), and `exp` (expiration), with a one-hour lifetime. The reusable `authenticate` middleware expects `Authorization: Bearer <token>`, verifies the signature with an explicit HS256 allowlist, checks expiration and required identity/time claims, and sets `req.auth.userId` without accessing MongoDB. Missing/malformed credentials and invalid/expired tokens return HTTP 401 with `Unauthorized`.
 
-`GET /api/auth/me` uses this middleware alongside the application router. It loads the current user by verified id and returns HTTP 200 with only `{ "user": { "id": "...", "name": "...", "email": "..." } }`; deleted/nonexistent users return the same safe 401. Database failures return generic 500 responses. Application routes require authentication as of Feature 04, with no ownership changes. No frontend authentication, browser token storage, refresh tokens, or logout is added.
+`GET /api/auth/me` uses this middleware alongside the application router. It loads the current user by verified id and returns HTTP 200 with only `{ "user": { "id": "...", "name": "...", "email": "..." } }`; deleted/nonexistent users return the same safe 401. Database failures return generic 500 responses. Application routes require authentication as of Feature 04, with per-user ownership enforced as of Feature 05. No frontend authentication, browser token storage, refresh tokens, or logout is added.
 
 With the backend running and the fictional account above registered, manually log in, capture the access token, and verify it from PowerShell:
 
@@ -160,7 +162,7 @@ Run `npm --prefix server test` for registration, login, and JWT checks. Tests se
 - src/styles/global.css: responsive layout and styles.
 - src/App.jsx: routes; src/main.jsx: React entry point.
 
-Applications load asynchronously from the API. The shared layout shows loading feedback before rendering data pages and a safe retry message on failure. Mutations serialize requests, merge edits with the latest server-confirmed record, and publish server responses to React state only after success. Failed add/edit/delete requests retain existing data; forms navigate only on success. PUT sends the complete merged record because the existing endpoint replaces optional fields. Nested and unknown metadata remain intact; the existing flexible Mongoose schema needs no changes.
+Applications load asynchronously from the API. The shared layout shows loading feedback before rendering data pages and a safe retry message on failure. Mutations serialize requests, merge edits with the latest server-confirmed record, and publish server responses to React state only after success. Failed add/edit/delete requests retain existing data; forms navigate only on success. PUT sends the complete merged record because the existing endpoint replaces optional fields. Nested and unknown metadata remain intact; the flexible Mongoose metadata fields remain unchanged alongside the required owner field.
 
 ### Previous browser data
 
@@ -280,6 +282,50 @@ try {
     Write-Output "Confirmed HTTP $status"
 }
 
-# 3. Valid Bearer token: expect 200 and the shared collection (possibly empty).
+# 3. Valid Bearer token: expect 200 and your own collection (possibly empty).
 Invoke-RestMethod "$api/applications" -Method Get -Headers @{ Authorization = "Bearer $accessToken" }
 ```
+
+## Feature 05 two-user manual test
+
+Run from PowerShell with the backend and MongoDB running and JWT_SECRET configured. Use fresh fictional emails for each run; register only once for each email.
+
+```powershell
+$api = 'http://localhost:5000/api'
+# 1. Register/login User A.
+$aCredentials = @{ name = 'Example User A'; email = 'feature05.a@example.com'; password = 'ExamplePassword123' } | ConvertTo-Json
+Invoke-RestMethod "$api/auth/register" -Method Post -ContentType 'application/json' -Body $aCredentials
+$aLogin = Invoke-RestMethod "$api/auth/login" -Method Post -ContentType 'application/json' -Body $aCredentials
+$aHeaders = @{ Authorization = "Bearer $($aLogin.accessToken)" }
+# 2. Register/login User B.
+$bCredentials = @{ name = 'Example User B'; email = 'feature05.b@example.com'; password = 'ExamplePassword456' } | ConvertTo-Json
+Invoke-RestMethod "$api/auth/register" -Method Post -ContentType 'application/json' -Body $bCredentials
+$bLogin = Invoke-RestMethod "$api/auth/login" -Method Post -ContentType 'application/json' -Body $bCredentials
+$bHeaders = @{ Authorization = "Bearer $($bLogin.accessToken)" }
+# 3. A creates an application.
+$aBody = @{ company = 'Example Company A'; position = 'Engineering Intern' } | ConvertTo-Json
+$aApp = Invoke-RestMethod "$api/applications" -Method Post -Headers $aHeaders -ContentType 'application/json' -Body $aBody
+# 4. B creates a different application.
+$bBody = @{ company = 'Example Company B'; position = 'Design Intern' } | ConvertTo-Json
+$bApp = Invoke-RestMethod "$api/applications" -Method Post -Headers $bHeaders -ContentType 'application/json' -Body $bBody
+# 5. A sees A's applications only.
+Invoke-RestMethod "$api/applications" -Headers $aHeaders
+# 6. B sees B's applications only.
+Invoke-RestMethod "$api/applications" -Headers $bHeaders
+# 7. A cannot read, update, or delete B's application: all return 404.
+foreach ($method in @('Get', 'Put', 'Delete')) {
+    $request = @{ Uri = "$api/applications/$($bApp.id)"; Method = $method; Headers = $aHeaders }
+    if ($method -eq 'Put') { $request.ContentType = 'application/json'; $request.Body = $aBody }
+    try {
+        Invoke-RestMethod @request
+        throw 'Expected HTTP 404'
+    } catch {
+        if ($null -eq $_.Exception.Response) { throw }
+        $status = [int]$_.Exception.Response.StatusCode
+        if ($status -ne 404) { throw }
+        Write-Output "$method confirmed HTTP $status"
+    }
+}
+```
+
+Feature 05 regression checks use two disposable users to verify isolated lists, cross-user GET/PUT/DELETE in both directions, ignored ownership spoofing, ownerless-record exclusion, required/indexed schema ownership, and ownership isolation across backend restarts. Existing authenticated CRUD, metadata, validation, authentication, frontend integration, and real API UI smoke checks remain in place.

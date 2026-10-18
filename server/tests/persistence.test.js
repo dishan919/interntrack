@@ -52,6 +52,20 @@ test('live MongoDB CRUD survives Express restarts, including updated metadata', 
     assert.equal(login.status, 200)
     const { accessToken } = await login.json()
     const authorizedFetch = (url, options) => fetch(url, { ...options, headers: { ...options?.headers, Authorization: `Bearer ${accessToken}` } })
+    const otherCredentials = { name: 'Other User', email: 'other-persistence@example.com', password: 'TestPassword123' }
+    assert.equal((await fetch(`${server.baseUrl}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(otherCredentials) })).status, 201)
+    const otherLogin = await fetch(`${server.baseUrl}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(otherCredentials) })
+    assert.equal(otherLogin.status, 200)
+    const { accessToken: otherToken } = await otherLogin.json()
+    async function assertIsolation(id) {
+      const headers = { Authorization: `Bearer ${otherToken}` }
+      const list = await fetch(`${server.baseUrl}/api/applications`, { headers })
+      assert.equal(list.status, 200)
+      assert.deepEqual(await list.json(), [])
+      const detail = await fetch(`${server.baseUrl}/api/applications/${id}`, { headers })
+      assert.equal(detail.status, 404)
+      assert.deepEqual(await detail.json(), { message: 'Application not found' })
+    }
     const health = await fetch(`${server.baseUrl}/api/health`)
     assert.equal(health.status, 200)
     assert.deepEqual(await health.json(), { status: 'ok', message: 'InternTrack API is running' })
@@ -62,9 +76,11 @@ test('live MongoDB CRUD survives Express restarts, including updated metadata', 
     })
     assert.equal(post.status, 201)
     const created = await post.json()
+    await assertIsolation(created.id)
     assert.deepEqual(await (await authorizedFetch(`${server.baseUrl}/api/applications/${created.id}`)).json(), created)
     await stopServer(server)
     server = await startServer(database.getUri())
+    await assertIsolation(created.id)
     let url = `${server.baseUrl}/api/applications/${created.id}`
     assert.deepEqual(await (await authorizedFetch(url)).json(), created)
     const put = await authorizedFetch(url, {
@@ -75,6 +91,7 @@ test('live MongoDB CRUD survives Express restarts, including updated metadata', 
     const updated = await put.json()
     await stopServer(server)
     server = await startServer(database.getUri())
+    await assertIsolation(created.id)
     url = `${server.baseUrl}/api/applications/${created.id}`
     assert.deepEqual(await (await authorizedFetch(url)).json(), updated)
     const deleted = await authorizedFetch(url, { method: 'DELETE' })

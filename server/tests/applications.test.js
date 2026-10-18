@@ -14,6 +14,8 @@ let baseUrl
 let database
 let accessToken
 let userId
+let otherUserId
+let otherAuthorization
 const testSecret = 'feature04-disposable-test-secret'
 const originalSecret = process.env.JWT_SECRET
 const valid = { company: 'IFS', position: 'Software Engineer Intern' }
@@ -25,6 +27,9 @@ before(async () => {
   const user = await User.create({ name: 'Test User', email: 'feature04@example.com', password: 'TestPassword123' })
   userId = user.id
   accessToken = createAccessToken(userId, testSecret)
+  const other = await User.create({ name: 'Other User', email: 'other@example.com', password: 'TestPassword123' })
+  otherUserId = other.id
+  otherAuthorization = `Bearer ${createAccessToken(other.id, testSecret)}`
   server = app.listen(0, '127.0.0.1')
   await once(server, 'listening')
   baseUrl = `http://127.0.0.1:${server.address().port}/api/applications`
@@ -205,7 +210,7 @@ test('frontend REST service preserves nested metadata through MongoDB and status
 // Spies prove failed authentication stops before that controller work.
 for (const [method, path] of [['GET', ''], ['GET', '/0123456789abcdef01234567'], ['POST', ''], ['PUT', '/0123456789abcdef01234567'], ['DELETE', '/0123456789abcdef01234567']]) {
   test(`${method} ${path || '/'} rejects failed authentication before controller work`, async t => {
-    const spies = ['find', 'findById', 'create', 'exists', 'findOneAndReplace', 'findByIdAndDelete'].map(name =>
+    const spies = ['find', 'findOne', 'create', 'exists', 'findOneAndReplace', 'findOneAndDelete'].map(name =>
       t.mock.method(Application, name, () => { throw new Error('Controller reached') }))
     const expired = jwt.sign({}, testSecret, { subject: userId, expiresIn: -1 })
     for (const authorization of [null, 'Bearer', 'Basic abc', 'Bearer abc def', 'Bearer invalid', `Bearer ${expired}`]) {
@@ -224,13 +229,65 @@ test('query tokens and client identity cannot replace a verified Bearer token', 
   assert.equal(await Application.countDocuments(), 0)
 })
 
-test('authenticated users intentionally share applications until ownership is implemented', async () => {
-  const created = await create()
-  const other = await User.create({ name: 'Other User', email: 'other@example.com', password: 'TestPassword123' })
-  const token = createAccessToken(other.id, testSecret)
-  const response = await request('GET', `/${created.id}`, undefined, `Bearer ${token}`)
-  assert.equal(response.status, 200)
-  assert.deepEqual(await response.json(), created)
-  assert.equal(Object.hasOwn(created, 'userId'), false)
-  assert.equal(Object.hasOwn(created, 'ownerId'), false)
+test('two users list only their own applications and cannot read, replace, or delete each other?s records', async () => {
+  const a = await create()
+  const response = await request('POST', '', { ...valid, company: 'Company B' }, otherAuthorization)
+  assert.equal(response.status, 201)
+  const b = await response.json()
+  for (const [authorization, own, foreign] of [[`Bearer ${accessToken}`, a, b], [otherAuthorization, b, a]]) {
+    assert.deepEqual(await (await request('GET', '', undefined, authorization)).json(), [own])
+    assert.deepEqual(await (await request('GET', `/${own.id}`, undefined, authorization)).json(), own)
+    for (const method of ['GET', 'PUT', 'DELETE']) {
+      for (const body of method === 'PUT' ? [valid, {}] : [undefined]) {
+        const denied = await request(method, `/${foreign.id}?owner=${userId}&userId=${otherUserId}`, body, authorization)
+        assert.equal(denied.status, 404)
+        assert.deepEqual(await denied.json(), { message: 'Application not found' })
+      }
+    }
+  }
+  assert.deepEqual(await (await request()).json(), [a])
+  assert.deepEqual(await (await request('GET', '', undefined, otherAuthorization)).json(), [b])
+  assert.equal(await Application.countDocuments(), 2)
+})
+
+test('POST and PUT ignore client ownership fields and preserve the verified owner through replacement', async () => {
+  for (const [authorization, owner, impostor] of [[`Bearer ${accessToken}`, userId, otherUserId], [otherAuthorization, otherUserId, userId]]) {
+    const spoof = { owner: impostor, ownerId: impostor, userId: impostor }
+    const response = await request('POST', `?owner=${impostor}&userId=${impostor}`, { ...valid, ...spoof }, authorization)
+    assert.equal(response.status, 201)
+    const created = await response.json()
+    for (const fields of [spoof, { owner: null, ownerId: { $ne: null }, userId: 'invalid' }, {}]) {
+      const updated = await request('PUT', `/${created.id}`, { ...valid, ...fields }, authorization)
+      assert.equal(updated.status, 200)
+      assert.deepEqual(await updated.json(), created)
+      const stored = await Application.findById(created.id)
+      assert.equal(stored.owner.toString(), owner)
+      assert.equal(stored.ownerId, undefined)
+      assert.equal(stored.userId, undefined)
+      assert.equal(stored.owner._bsontype, 'ObjectId')
+      for (const key of ['owner', 'ownerId', 'userId']) assert.equal(Object.hasOwn(created, key), false)
+    }
+  }
+})
+
+test('legacy ownerless records remain untouched and inaccessible to both users', async () => {
+  const { insertedId } = await Application.collection.insertOne({ ...valid, status: 'Saved' })
+  for (const authorization of [`Bearer ${accessToken}`, otherAuthorization]) {
+    assert.deepEqual(await (await request('GET', '', undefined, authorization)).json(), [])
+    for (const method of ['GET', 'PUT', 'DELETE']) {
+      const response = await request(method, `/${insertedId}`, method === 'PUT' ? { ...valid, owner: userId } : undefined, authorization)
+      assert.equal(response.status, 404)
+      assert.deepEqual(await response.json(), { message: 'Application not found' })
+    }
+  }
+  const legacy = await Application.collection.findOne({ _id: insertedId })
+  assert.deepEqual(legacy, { _id: insertedId, ...valid, status: 'Saved' })
+})
+
+test('Application schema requires and indexes an ObjectId User reference', async () => {
+  const owner = Application.schema.path('owner')
+  assert.equal(owner.instance, 'ObjectId')
+  assert.equal(owner.options.ref, 'User')
+  assert.ok(Application.schema.indexes().some(([keys]) => keys.owner === 1))
+  await assert.rejects(Application.create(valid), error => error.errors.owner.kind === 'required')
 })

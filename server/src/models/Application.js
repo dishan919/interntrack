@@ -4,6 +4,7 @@ const { Schema } = mongoose
 export const APPLICATION_STATUSES = ['Saved', 'Applied', 'Interview', 'Offer', 'Rejected']
 
 const applicationSchema = new Schema({
+  owner: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   company: { type: String, required: true, trim: true },
   position: { type: String, required: true, trim: true },
   status: { type: String, enum: APPLICATION_STATUSES, default: 'Saved', required: true },
@@ -29,6 +30,7 @@ const applicationSchema = new Schema({
     transform(_doc, result) {
       result.id = result._id.toString()
       delete result._id
+      delete result.owner
       delete result.__v
       return result
     },
