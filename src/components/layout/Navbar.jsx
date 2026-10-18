@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 import { useApplications } from '../../context/ApplicationContext'
 import { exportApplicationData } from '../../utils/exportData'
 export default function Navbar({ toggle, open }) {
+  const { logout } = useAuth()
   const { pathname } = useLocation()
   const { applications } = useApplications()
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
@@ -40,5 +42,5 @@ export default function Navbar({ toggle, open }) {
   }}><button type="button" className="avatar small" ref={triggerRef} aria-label="Student Workspace" aria-expanded={workspaceOpen} aria-controls={dropdownId} onClick={() => setWorkspaceOpen(!workspaceOpen)}>S</button>{workspaceOpen && <div className="workspace-menu" id={dropdownId}><div className="workspace-menu-heading">Student Workspace</div><Link ref={settingsRef} to="/settings" onClick={closeWorkspace}>Settings</Link><button type="button" onClick={() => {
     exportApplicationData(applications)
     closeWorkspace()
-  }}>Export Data</button></div>}</div></div></header>
+  }}>Export Data</button><button type="button" onClick={logout}>Sign out</button></div>}</div></div></header>
 }

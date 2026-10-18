@@ -2,6 +2,7 @@
 import { act, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { JSDOM } from 'jsdom'
+import AuthFixture from './authFixture'
 import RealProvider from '../src/context/ApplicationProvider'
 import { ApplicationContext, useApplications } from '../src/context/ApplicationContext'
 let renderer
@@ -14,7 +15,7 @@ export async function reloadContext() {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   if (renderer) await act(async () => renderer.unmount())
   function Capture() { const value = useApplications(); useEffect(() => { context = value }); return null }
-  await act(async () => { renderer = createRoot(document.createElement('div')); renderer.render(<RealProvider><Capture /></RealProvider>) })
+  await act(async () => { renderer = createRoot(document.createElement('div')); renderer.render(<AuthFixture><RealProvider><Capture /></RealProvider></AuthFixture>) })
   active = { ...context }
   const actions = {}
   for (const key of ['addApplication', 'updateApplication', 'deleteApplication', 'clearApplications', 'reloadApplications']) {
@@ -29,6 +30,6 @@ export async function reloadContext() {
   return active
 }
 export default function FixtureProvider({ children }) {
-  return <ApplicationContext.Provider value={active}>{children}</ApplicationContext.Provider>
+  return <AuthFixture><ApplicationContext.Provider value={active}>{children}</ApplicationContext.Provider></AuthFixture>
 }
 export async function cleanupContext() { if (renderer) await act(async () => renderer.unmount()); renderer = null }

@@ -4,7 +4,6 @@ import { once } from 'node:events'
 import { JSDOM } from 'jsdom'
 import { createServer, resolveConfig } from 'vite'
 import User from '../server/src/models/User.js'
-import { createAccessToken } from '../server/src/config/jwt.js'
 import app from '../server/src/app.js'
 import { connectDatabase, disconnectDatabase } from '../server/src/config/database.js'
 import { startTestDatabase } from '../server/tests/helpers/database.js'
@@ -22,14 +21,24 @@ globalThis.localStorage = dom.window.localStorage
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 window.confirm = () => true
 try {
+  console.log('Smoke: connecting disposable database')
   await connectDatabase(database.getUri())
   backend = app.listen(0, '127.0.0.1')
   await once(backend, 'listening')
   process.env.VITE_API_URL = `http://127.0.0.1:${backend.address().port}/api`
   const user = await User.create({ name: 'Smoke User', email: 'smoke@example.com', password: 'TestPassword123' })
-  const token = createAccessToken(user.id, process.env.JWT_SECRET)
-  // Test-only transport supplies credentials without adding frontend token storage/UI.
-  globalThis.fetch = (url, options) => originalFetch(url, { ...options, headers: { ...options?.headers, Authorization: `Bearer ${token}` } })
+  assert.ok(user.id)
+  console.log('Smoke: obtaining test session')
+  const login = await originalFetch(`${process.env.VITE_API_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'smoke@example.com', password: 'TestPassword123' }) })
+  assert.equal(login.status, 200)
+  const { accessToken } = await login.json()
+  window.sessionStorage.setItem('interntrack_access_token', accessToken)
+  // Assert production transport supplies Bearer headers; never inject them here.
+  globalThis.fetch = (url, options) => {
+    if (url.includes('/applications')) assert.equal(options?.headers?.Authorization, `Bearer ${window.sessionStorage.getItem('interntrack_access_token')}`)
+    return originalFetch(url, options)
+  }
+  console.log('Smoke: starting test renderer')
   vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' })
   const { default: App } = await vite.ssrLoadModule('/src/App.jsx')
   const { createElement, act } = await import('react')
@@ -46,7 +55,7 @@ try {
     if (root) await act(async () => root.unmount())
     root = createRoot(container)
     await act(async () => root.render(createElement(App)))
-    await waitFor(() => !container.textContent.includes('Loading applications'))
+    await waitFor(() => !container.textContent.includes('Loading applications') && !container.textContent.includes('Checking your session'))
   }
   async function input(name, value) {
     const element = container.querySelector(`[name="${name}"]`)
@@ -58,8 +67,9 @@ try {
   }
   async function click(element) { assert.ok(element); await act(async () => element.dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }))) }
   const button = text => [...container.querySelectorAll('button')].find(element => element.textContent.includes(text))
-  const read = async () => (await fetch(process.env.VITE_API_URL + '/applications')).json()
+  const read = async () => (await originalFetch(process.env.VITE_API_URL + '/applications', { headers: { Authorization: `Bearer ${accessToken}` } })).json()
 
+  console.log('Smoke: restoring session and rendering application form')
   await refresh()
   await input('company', 'Step 4 Smoke')
   await input('position', 'React Intern')
@@ -96,10 +106,27 @@ try {
   await refresh()
   assert.equal((await read()).length, 0)
   assert.doesNotMatch(container.textContent, /Step 4 Updated/)
+  await click(container.querySelector('[aria-label="Student Workspace"]'))
+  await click(button('Sign out'))
+  await waitFor(() => window.location.pathname === `${base}login`)
+  assert.equal(window.sessionStorage.getItem('interntrack_access_token'), null)
+  // Exercise the real login form and provider, in addition to restoration above.
+  await input('email', 'smoke@example.com')
+  await input('password', 'TestPassword123')
+  await act(async () => container.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
+  await waitFor(() => window.location.pathname === base && container.textContent.includes('Track your applications'))
+  assert.ok(window.sessionStorage.getItem('interntrack_access_token'))
+  assert.doesNotMatch(container.textContent, /TestPassword123/)
+  window.sessionStorage.setItem('interntrack_access_token', 'invalid-test-token')
+  await refresh()
+  await waitFor(() => window.location.pathname === `${base}login`)
+  assert.equal(window.sessionStorage.getItem('interntrack_access_token'), null)
+  console.log('PASS: real API session restoration, UI logout/login to dashboard, and invalid-token cleanup')
   console.log('PASS: real React DOM create/refresh/edit/refresh/Kanban/refresh/delete/refresh through Express and disposable MongoDB')
   await act(async () => root.unmount())
   root = null
 } finally {
+  console.log('Smoke: cleaning up')
   globalThis.fetch = originalFetch
   if (originalSecret === undefined) delete process.env.JWT_SECRET
   else process.env.JWT_SECRET = originalSecret

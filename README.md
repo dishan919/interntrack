@@ -66,7 +66,7 @@ Feature 04/60 applies the existing `authenticate` middleware once with `router.u
 
 **Legacy development data:** existing ownerless applications remain in MongoDB unchanged, but no user can list, read, update, delete, or claim them through this API. Adding a required schema field does not backfill existing documents. No automatic assignment or migration runs. For local recovery, keep a backup, review the records outside the API, and explicitly recreate selected editable application data through authenticated POST requests for the intended account. The backend assigns the new owner and ID; old records remain inaccessible. No personal database is modified by tests.
 
-The production frontend currently sends no JWTs, so application loading/mutations against the protected backend receive 401 and show the existing safe error UI. Registration UI is available at `/register` as of Feature 06. Login UI is available at `/login` as of Feature 07. Token storage and automatic production Authorization headers are deferred. Frontend mock suites remain isolated; real API service/smoke checks inject signed test credentials only in their test transport.
+The frontend uses AuthProvider/AuthContext as of Feature 08. Registration and login are public routes; the workspace requires a verified session. Application requests send the current JWT in the Authorization header. Frontend mock suites remain isolated, and the real API smoke test checks production Bearer headers against disposable MongoDB.
 
 MongoDB is now used by the Express Applications API. Records survive backend restarts when using the same MongoDB database. The React frontend uses this API for application persistence. Legacy browser records are imported only on an explicit Settings action.
 
@@ -137,7 +137,7 @@ Local token functionality requires `JWT_SECRET` in the ignored `server/.env` or 
 
 After bcrypt verification, login uses [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) to sign an HS256 access token containing only `sub` (user id), `iat` (issued at), and `exp` (expiration), with a one-hour lifetime. The reusable `authenticate` middleware expects `Authorization: Bearer <token>`, verifies the signature with an explicit HS256 allowlist, checks expiration and required identity/time claims, and sets `req.auth.userId` without accessing MongoDB. Missing/malformed credentials and invalid/expired tokens return HTTP 401 with `Unauthorized`.
 
-`GET /api/auth/me` uses this middleware alongside the application router. It loads the current user by verified id and returns HTTP 200 with only `{ "user": { "id": "...", "name": "...", "email": "..." } }`; deleted/nonexistent users return the same safe 401. Database failures return generic 500 responses. Application routes require authentication as of Feature 04, with per-user ownership enforced as of Feature 05. Frontend registration/login UI is described below; browser token storage, refresh tokens, and logout remain deferred.
+`GET /api/auth/me` uses this middleware alongside the application router. It loads the current user by verified id and returns HTTP 200 with only `{ "user": { "id": "...", "name": "...", "email": "..." } }`; deleted/nonexistent users return the same safe 401. Database failures return generic 500 responses. Application routes require authentication as of Feature 04, with per-user ownership enforced as of Feature 05. Frontend registration/login and session management are described below; refresh tokens remain deferred.
 
 With the backend running and the fictional account above registered, manually log in, capture the access token, and verify it from PowerShell:
 
@@ -334,7 +334,7 @@ Feature 05 regression checks use two disposable users to verify isolated lists, 
 
 Open `/interntrack/register` to create an account using the existing `POST /api/auth/register` endpoint. This public page runs outside the application-data provider, so protected application API requests cannot block registration. Name, email, password, and matching confirmation are validated locally; backend validation remains authoritative. The auth service uses `VITE_API_URL` (default `http://localhost:5000/api`), sends only name/email/password, and displays safe validation, duplicate-email, and connection errors.
 
-Submission disables controls and prevents duplicate requests. Success displays ?Account created successfully.? and clears password fields. It does not log in, store tokens/passwords, or create authentication state. The Sign in link opens `/login`; token management remains intentionally deferred.
+Submission disables controls and prevents duplicate requests. Success displays ?Account created successfully.? and clears password fields. It does not log in, store tokens/passwords, or create authentication state. The Sign in link opens `/login`; session management is handled centrally by AuthProvider (Feature 08).
 
 Manual test from the repository folder:
 
@@ -351,7 +351,7 @@ Open `/interntrack/login` with the configured Vite base (`/login` relative to `i
 
 Email and password are required, email format is checked, and passwords require at least eight characters. Email is trimmed; passwords retain their exact whitespace. `authService.login()` calls the real existing `POST /api/auth/login` using `VITE_API_URL` (default `http://localhost:5000/api`). Backend validation and bcrypt verification remain authoritative. Missing/incorrect credentials display safe feedback; network/server failures show friendly messages without backend diagnostics. Submission disables controls and prevents duplicate requests.
 
-Successful login shows ?Signed in successfully.? and clears the password. The service returns the existing safe user/accessToken contract in memory; the page retains only safe user details. It does not display, log, or persist the JWT/password, create AuthContext, redirect to the dashboard, or add automatic Authorization headers. Refreshing starts a fresh form. Application API authentication and ownership remain enforced.
+As of Feature 08, successful login hands the safe user/token response to AuthProvider, clears the password, and navigates to the dashboard. The provider persists only the access token in sessionStorage. The token and password are never displayed or logged. Registration still does not log in automatically. See session lifecycle and manual checks below.
 
 Manual test from the repository folder:
 
@@ -365,7 +365,44 @@ npm run dev
 1. Open `http://localhost:5173/interntrack/register` (use Vite's printed port if different) and register a fresh fictional account such as `login.demo@example.com`.
 2. Follow Sign in to `http://localhost:5173/interntrack/login`. Check empty fields, an invalid email, a short password, and Show/Hide without submission.
 3. Submit an incorrect password of at least eight characters and confirm ?Invalid email or password?. Stop the backend temporarily to verify the friendly connection error.
-4. Restart the backend and submit the correct credentials. Confirm success on the same URL, cleared password fields, no token displayed, and no password/token written to localStorage or sessionStorage. Refresh to confirm a fresh form.
-5. Follow Create an account to return to registration. Existing dashboard/application routes retain their configured basename and protected API behavior.
+4. Restart the backend and submit the correct credentials. Confirm navigation to the dashboard, no token displayed, and only the access token stored in sessionStorage (no password/user credentials, no JWT in localStorage). Refresh to confirm session restoration.
+5. Sign out from the account menu, then follow Create an account to return to registration. Existing dashboard/application routes retain their configured basename and protected API behavior.
 
-Focused tests cover login validation, the service request/response contract, safe errors and malformed responses, real input and visibility controls, duplicate submission, success without persistence/redirect, auth links under the basename, and the frontend login service against the real Express API using disposable MongoDB. Run `npm test`, `npm run test:integration`, `npm --prefix server test`, `npm run test:smoke`, `npm run lint`, and `npm run build`.
+Focused tests cover login validation, the service request/response contract, safe errors and malformed responses, real input and visibility controls, duplicate submission, session persistence, dashboard redirect, auth links under the basename, and the frontend login service against the real Express API using disposable MongoDB. Run `npm test`, `npm run test:integration`, `npm --prefix server test`, `npm run test:smoke`, `npm run lint`, and `npm run build`.
+
+## Authentication state and sessions (Feature 08/60)
+
+`AuthProvider` surrounds the routes and exposes safe user state, accessToken, isAuthenticated, isAuthLoading, login, and logout through `AuthContext`. Login calls the existing service once, stores only the access token under **`interntrack_access_token` in sessionStorage**, and navigates with React Router `navigate('/')`. The existing Vite basename maps that to `/interntrack/`. Already-authenticated visits to `/login` redirect to the dashboard. Registration remains public and never authenticates a newly created account automatically.
+
+On initialization the provider checks centralized session storage. With no token it finishes unauthenticated without calling protected APIs. With a stored token it calls `GET /api/auth/me` using `Authorization: Bearer <accessToken>` and restores the safe user only after the backend verifies the session. Private routes show "Checking your session..." during restoration. Invalid/expired tokens and restoration failures (including an unavailable backend) clear the stored token and fail closed to login; stored user objects are never trusted. If storage is unavailable, login displays a friendly error rather than claiming a persisted session.
+
+All workspace routes (`/`, applications and its add/detail/edit routes, companies, statistics, settings) are guarded. Unauthenticated visits redirect to `/login`. ApplicationProvider mounts only after authentication is known and keys its state to the current user/session. Logout or account changes unmount and clear previous application data. Queued operations stop after unmount, late responses cannot repopulate another session, and each operation retains its original token rather than switching identities mid-request.
+
+`applicationService` attaches Bearer headers centrally for every application CRUD/import request. Application 401 responses invalidate the matching current session, clear its token/user, and return the user to login. A delayed 401 from an older token cannot terminate a newer session. There are no refresh tokens or automatic retry with new credentials. Non-401 application errors keep the existing safe retry behavior.
+
+Use **Sign out** in the existing Student Workspace account menu. It removes the session token, clears user/authentication state, and removes the private workspace. Requests already accepted by the server cannot be undone by frontend logout; subsequent queued writes are stopped, and stale results are discarded.
+
+SessionStorage is a learning-stage, per-tab persistence choice, not a claim of final production authentication design. It stores no password, confirmation, email, or user object, and JWTs never appear in URLs or UI. Backend JWT verification and per-user ownership remain authoritative. No refresh tokens, HttpOnly cookies, remember-me, roles, or deployment changes are included.
+
+### Manual session test
+
+From the repository folder, with MongoDB running and `server/.env` configured:
+
+```powershell
+# Terminal 1
+npm --prefix server run dev
+# Terminal 2
+npm run dev
+```
+
+Use the port printed by Vite if it differs from 5173.
+
+1. In a fresh browser tab/session with no saved token, visit `http://localhost:5173/interntrack/`. Confirm redirect to `/interntrack/login` without an application API request.
+2. If needed, follow Create an account and register fictional credentials at `/interntrack/register`, then intentionally return to Sign in. Registration alone must not create a session.
+3. Log in with that account. Confirm the URL becomes `http://localhost:5173/interntrack/` and the dashboard loads.
+4. Open Applications, create a fictional record, and reload. In browser Network tools confirm protected requests return success with an Authorization Bearer header; do not copy or share the token. A second account must see only its own data.
+5. Refresh while logged in. Confirm `/api/auth/me` verifies the session before application data loads and the dashboard remains accessible. Only `interntrack_access_token` is saved for authentication in sessionStorage, with no password or JWT in localStorage.
+6. Open the Student Workspace avatar menu and choose Sign out. Confirm redirect to `/interntrack/login`, removal of the saved token, and no previous application data displayed.
+7. Visit `http://localhost:5173/interntrack/applications` after logout. Confirm redirect to login. To check invalid-session cleanup, set `interntrack_access_token` in browser sessionStorage to fictional text such as `invalid-test-token`, then refresh a private route; it must clear the token and stay unauthenticated.
+
+Validation commands: `npm test`, `npm run test:integration`, `npm --prefix server test`, `npm run test:smoke`, `npm run lint`, `npm run build`. Auth tests cover token-only storage, verified restoration, safe loading, logout, account changes and late responses, guarded routes, basename links, 401 cleanup, and production Bearer headers. Real API tests use disposable MongoDB only.

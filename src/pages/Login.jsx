@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { login } from '../services/authService'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { validateLogin } from '../utils/login'
 import '../styles/register.css'
 
@@ -10,7 +10,8 @@ export default function Login() {
   const [errors, setErrors] = useState({})
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
-  const [user, setUser] = useState(null)
+  const { login, isAuthenticated, isAuthLoading } = useAuth()
+  const navigate = useNavigate()
   const submitting = useRef(false)
   const formRef = useRef(null)
 
@@ -27,10 +28,10 @@ export default function Login() {
     submitting.current = true
     setPending(true)
     try {
-      const { user: safeUser } = await login(values)
+      await login(values)
       setValues({ email: '', password: '' })
       setVisible(false)
-      setUser(safeUser)
+      navigate('/', { replace: true })
     } catch (failure) {
       setError(failure.message)
     } finally {
@@ -39,14 +40,16 @@ export default function Login() {
     }
   }
 
+  if (isAuthLoading) return <main className="register-page" role="status">Checking your session...</main>
+  if (isAuthenticated) return <Navigate to="/" replace />
+
   return <main className="register-page">
     <div className="register-brand"><span className="brand-icon" aria-hidden="true" />InternTrack<span className="brand-dot">.</span></div>
     <section className="register-card" aria-labelledby="login-heading">
       <div className="register-eyebrow">WELCOME BACK</div>
       <h1 id="login-heading">Sign in to InternTrack</h1>
       <p>Your next opportunity starts with a small step.</p>
-      {user ? <div className="register-success" role="status"><h2>Signed in successfully.</h2><p>Welcome back, {user.name}. Your credentials have been verified.</p></div>
-        : <form ref={formRef} onSubmit={submit} noValidate aria-busy={pending}>
+      <form ref={formRef} onSubmit={submit} noValidate aria-busy={pending}>
           {error && <div className="notice error" role="alert">{error}</div>}
           <div className="register-field">
             <label htmlFor="login-email">Email</label>
@@ -68,7 +71,7 @@ export default function Login() {
           </div>
           <button type="submit" className="button primary register-submit" disabled={pending}>{pending ? 'Signing in...' : 'Sign in'}</button>
           {pending && <span role="status" className="register-hint">Signing in...</span>}
-        </form>}
+        </form>
       <p className="register-login">New to InternTrack? <Link to="/register">Create an account</Link></p>
     </section>
     <p className="register-footer">Made for your next move.</p>

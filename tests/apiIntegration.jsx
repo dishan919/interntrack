@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { act, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import AuthFixture from './authFixture'
 import ApplicationProvider from '../src/context/ApplicationProvider'
 import { useApplications } from '../src/context/ApplicationContext'
 import Layout from '../src/components/layout/Layout'
@@ -19,7 +20,7 @@ export default async function verifyApiIntegration() {
   const container = document.createElement('div')
   const root = createRoot(container)
   async function mount() {
-    await act(async () => root.render(<MemoryRouter><ApplicationProvider><Capture /><Routes><Route element={<Layout />}><Route index element={<Dashboard />} /></Route></Routes></ApplicationProvider></MemoryRouter>))
+    await act(async () => root.render(<MemoryRouter><AuthFixture><ApplicationProvider><Capture /><Routes><Route element={<Layout />}><Route index element={<Dashboard />} /></Route></Routes></ApplicationProvider></AuthFixture></MemoryRouter>))
   }
   try {
     await mount()
@@ -68,7 +69,7 @@ export default async function verifyApiIntegration() {
   const offlineContainer = document.createElement('div')
   const offlineRoot = createRoot(offlineContainer)
   try {
-    await act(async () => offlineRoot.render(<MemoryRouter><ApplicationProvider><Routes><Route element={<Layout />}><Route index element={<Dashboard />} /></Route></Routes></ApplicationProvider></MemoryRouter>))
+    await act(async () => offlineRoot.render(<MemoryRouter><AuthFixture><ApplicationProvider><Routes><Route element={<Layout />}><Route index element={<Dashboard />} /></Route></Routes></ApplicationProvider></AuthFixture></MemoryRouter>))
     assert.match(offlineContainer.textContent, /Unable to load applications/)
     assert.doesNotMatch(offlineContainer.textContent, /No applications/)
     globalThis.fetch = rest

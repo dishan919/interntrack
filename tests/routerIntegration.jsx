@@ -15,9 +15,15 @@ export default async function verify() {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const record = { id: 'route-test', company: 'Example Company', position: 'Routing Intern', status: 'Saved' }
   installApi(new Map([['interntrack_applications', JSON.stringify([record])]]))
+  const rest = globalThis.fetch
+  globalThis.fetch = (url, options) => url.endsWith('/auth/me')
+    ? Promise.resolve(new Response(JSON.stringify({ user: { id: 'route-user', name: 'Route User', email: 'route@example.com' } })))
+    : rest(url, options)
   let root
   async function visit(path) {
     if (root) await act(async () => root.unmount())
+    if (['register', 'login'].includes(path)) window.sessionStorage.removeItem('interntrack_access_token')
+    else window.sessionStorage.setItem('interntrack_access_token', 'route-test-token')
     window.history.replaceState({}, '', `${base}${path}`)
     root = createRoot(container)
     await act(async () => root.render(<App />))
@@ -57,6 +63,7 @@ export default async function verify() {
   } finally {
     if (root) await act(async () => root.unmount())
     container.remove()
+    window.sessionStorage.removeItem('interntrack_access_token')
     globalThis.fetch = originalFetch
     globalThis.localStorage = originalStorage
     window.history.replaceState({}, '', originalUrl)

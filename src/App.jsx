@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
-import ApplicationProvider from './context/ApplicationProvider'
-import Layout from './components/layout/Layout'
+import AuthProvider from './context/AuthProvider'
+import AuthenticatedWorkspace from './components/layout/AuthenticatedWorkspace'
 import Dashboard from './pages/Dashboard'
 import Applications from './pages/Applications'
 import AddApplication from './pages/AddApplication'
@@ -12,10 +12,10 @@ import Settings from './pages/Settings'
 import Register from './pages/Register'
 import Login from './pages/Login'
 export default function App() {
-  return <BrowserRouter basename={import.meta.env.BASE_URL}><Routes>
+  return <BrowserRouter basename={import.meta.env.BASE_URL}><AuthProvider><Routes>
     <Route path="login" element={<Login />} />
     <Route path="register" element={<Register />} />
-    <Route element={<ApplicationProvider><Layout /></ApplicationProvider>}>
+    <Route element={<AuthenticatedWorkspace />}>
       <Route index element={<Dashboard />} />
       <Route path="applications" element={<Applications />} />
       <Route path="applications/new" element={<AddApplication />} />
@@ -26,5 +26,5 @@ export default function App() {
       <Route path="settings" element={<Settings />} />
       <Route path="*" element={<div className="empty-state"><h1>Page not found</h1><Link className="button primary" to="/">Back to dashboard</Link></div>} />
     </Route>
-  </Routes></BrowserRouter>
+  </Routes></AuthProvider></BrowserRouter>
 }

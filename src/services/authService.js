@@ -1,3 +1,5 @@
+import { bearerHeaders } from './authSession.js'
+
 const API_URL = (import.meta.env?.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '')
 const safeValidationMessages = new Set([
   'Name is required', 'Name must be at most 120 characters',
@@ -58,4 +60,18 @@ export async function login({ email, password }) {
   const { id, name, email: userEmail } = data.user
   // Return the existing API contract in memory only; no storage or logging.
   return { user: { id, name, email: userEmail }, accessToken: data.accessToken }
+}
+
+export async function getCurrentUser(accessToken) {
+  let response
+  try { response = await fetch(`${API_URL}/auth/me`, { headers: bearerHeaders(accessToken) }) }
+  catch { throw new Error('Unable to verify your session. Please sign in again.') }
+  if (!response.ok) throw new Error('Unable to verify your session. Please sign in again.')
+  let data
+  try { data = await response.json() } catch { throw new Error('The server returned an invalid response. Please sign in again.') }
+  if (!data?.user || !['id', 'name', 'email'].every(key => typeof data.user[key] === 'string')) {
+    throw new Error('The server returned an invalid response. Please sign in again.')
+  }
+  const { id, name, email } = data.user
+  return { user: { id, name, email } }
 }

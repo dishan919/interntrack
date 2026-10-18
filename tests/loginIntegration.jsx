@@ -82,17 +82,28 @@ export default async function verify() {
     await submit()
     assert.match(container.querySelector('[role="alert"]').textContent, /Check your connection/)
     assert.doesNotMatch(container.textContent, /private diagnostic/)
-    globalThis.fetch = async () => new Response(JSON.stringify({ user: { id: 'test-id', name: 'Example User', email: 'user@example.com' }, accessToken: 'never-display-test-token' }))
+    globalThis.fetch = async (url, options) => {
+      if (url.endsWith('/applications')) {
+        assert.equal(options.headers.Authorization, 'Bearer never-display-test-token')
+        return new Response('[]')
+      }
+      return new Response(JSON.stringify({ user: { id: 'test-id', name: 'Example User', email: 'user@example.com' }, accessToken: 'never-display-test-token' }))
+    }
     await submit()
-    assert.match(container.querySelector('[role="status"]').textContent, /Signed in successfully/)
-    assert.equal(container.querySelector('input'), null)
+    assert.match(container.querySelector('h1').textContent, /Track your applications/)
+    assert.equal(container.querySelector('input[name="password"]'), null)
     assert.doesNotMatch(container.innerHTML, /never-display-test-token|Password123/)
-    assert.equal(window.location.pathname, `${base}login`, 'No redirect after login')
-    assert.deepEqual([JSON.stringify(window.localStorage), JSON.stringify(window.sessionStorage)], storageBefore)
-    await mount()
+    assert.equal(window.location.pathname, base, 'Login redirects to dashboard with basename')
+    assert.equal(window.sessionStorage.getItem('interntrack_access_token'), 'never-display-test-token')
+    assert.equal(JSON.stringify(window.localStorage), storageBefore[0])
+    assert.doesNotMatch(JSON.stringify(window.sessionStorage), /Password123|user@example.com/)
+    await act(async () => container.querySelector('[aria-label="Student Workspace"]').click())
+    await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Sign out').click())
+    assert.equal(window.location.pathname, `${base}login`)
+    assert.equal(window.sessionStorage.getItem('interntrack_access_token'), null)
     assert.equal(container.querySelector('[name="password"]').value, '')
     assert.equal(container.querySelector('[name="password"]').type, 'password')
-    return 'PASS: public login, validation, accessible Show/Hide, exact payload, loading/duplicate guard, safe errors, success without token display/storage or redirect'
+    return 'PASS: public login, validation, accessible Show/Hide, exact payload, loading/duplicate guard, safe errors, session token only, dashboard redirect and logout cleanup'
   } finally {
     if (root) await act(async () => root.unmount())
     container.remove()
