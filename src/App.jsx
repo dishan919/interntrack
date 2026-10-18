@@ -9,9 +9,11 @@ import EditApplication from './pages/EditApplication'
 import Companies from './pages/Companies'
 import Statistics from './pages/Statistics'
 import Settings from './pages/Settings'
+import Register from './pages/Register'
 export default function App() {
-  return <BrowserRouter><ApplicationProvider><Routes>
-    <Route element={<Layout />}>
+  return <BrowserRouter basename={import.meta.env.BASE_URL}><Routes>
+    <Route path="register" element={<Register />} />
+    <Route element={<ApplicationProvider><Layout /></ApplicationProvider>}>
       <Route index element={<Dashboard />} />
       <Route path="applications" element={<Applications />} />
       <Route path="applications/new" element={<AddApplication />} />
@@ -22,5 +24,5 @@ export default function App() {
       <Route path="settings" element={<Settings />} />
       <Route path="*" element={<div className="empty-state"><h1>Page not found</h1><Link className="button primary" to="/">Back to dashboard</Link></div>} />
     </Route>
-  </Routes></ApplicationProvider></BrowserRouter>
+  </Routes></BrowserRouter>
 }

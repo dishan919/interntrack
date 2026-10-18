@@ -66,7 +66,7 @@ Feature 04/60 applies the existing `authenticate` middleware once with `router.u
 
 **Legacy development data:** existing ownerless applications remain in MongoDB unchanged, but no user can list, read, update, delete, or claim them through this API. Adding a required schema field does not backfill existing documents. No automatic assignment or migration runs. For local recovery, keep a backup, review the records outside the API, and explicitly recreate selected editable application data through authenticated POST requests for the intended account. The backend assigns the new owner and ID; old records remain inaccessible. No personal database is modified by tests.
 
-The production frontend currently sends no JWTs, so application loading/mutations against the protected backend receive 401 and show the existing safe error UI. Login/Register UI, token storage, and automatic production Authorization headers are deferred. Frontend mock suites remain isolated; real API service/smoke checks inject signed test credentials only in their test transport.
+The production frontend currently sends no JWTs, so application loading/mutations against the protected backend receive 401 and show the existing safe error UI. Registration UI is available at `/register` as of Feature 06. Login UI, token storage, and automatic production Authorization headers are deferred. Frontend mock suites remain isolated; real API service/smoke checks inject signed test credentials only in their test transport.
 
 MongoDB is now used by the Express Applications API. Records survive backend restarts when using the same MongoDB database. The React frontend uses this API for application persistence. Legacy browser records are imported only on an explicit Settings action.
 
@@ -329,3 +329,18 @@ foreach ($method in @('Get', 'Put', 'Delete')) {
 ```
 
 Feature 05 regression checks use two disposable users to verify isolated lists, cross-user GET/PUT/DELETE in both directions, ignored ownership spoofing, ownerless-record exclusion, required/indexed schema ownership, and ownership isolation across backend restarts. Existing authenticated CRUD, metadata, validation, authentication, frontend integration, and real API UI smoke checks remain in place.
+
+## Frontend registration (Feature 06/60)
+
+Open `/register` to create an account using the existing `POST /api/auth/register` endpoint. This public page runs outside the application-data provider, so protected application API requests cannot block registration. Name, email, password, and matching confirmation are validated locally; backend validation remains authoritative. The auth service uses `VITE_API_URL` (default `http://localhost:5000/api`), sends only name/email/password, and displays safe validation, duplicate-email, and connection errors.
+
+Submission disables controls and prevents duplicate requests. Success displays ?Account created successfully.? and clears password fields. It does not log in, store tokens/passwords, or create authentication state. ?Sign in ? coming soon? is a non-navigation placeholder; frontend login and token management are intentionally deferred.
+
+Manual test from the repository folder:
+
+1. If dependencies are not installed, run `npm install` and `npm --prefix server install`.
+2. Configure `server/.env` from `server/.env.example` with your development MongoDB URI and JWT secret, and start MongoDB.
+3. Run `npm --prefix server run dev` in one PowerShell terminal.
+4. In another, run `npm run dev` and open `http://localhost:5173/register` (or the port Vite prints).
+5. Submit empty fields; try an invalid email, short password, and mismatched confirmation. Correct them and use a fresh fictional address such as `register.demo@example.com` with a password of at least eight characters. Confirm the success message without navigation or automatic login.
+6. Reload `/register`, submit the same email, and confirm the duplicate-email message. Stop the backend and submit a valid form to check the friendly connection error. No password or token should appear in browser storage.

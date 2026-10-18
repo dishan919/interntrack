@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { JSDOM } from 'jsdom'
-import { createServer } from 'vite'
+import { createServer, resolveConfig } from 'vite'
 import User from '../server/src/models/User.js'
 import { createAccessToken } from '../server/src/config/jwt.js'
 import app from '../server/src/app.js'
@@ -12,9 +12,10 @@ import { startTestDatabase } from '../server/tests/helpers/database.js'
 const originalFetch = globalThis.fetch
 const originalSecret = process.env.JWT_SECRET
 process.env.JWT_SECRET = "feature04-ui-smoke-test-secret"
+const { base } = await resolveConfig({}, 'serve')
 const database = await startTestDatabase()
 let backend, vite, root
-const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/applications/new' })
+const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: `http://localhost${base}applications/new` })
 globalThis.window = dom.window
 globalThis.document = dom.window.document
 globalThis.localStorage = dom.window.localStorage
@@ -63,20 +64,20 @@ try {
   await input('company', 'Step 4 Smoke')
   await input('position', 'React Intern')
   await act(async () => container.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
-  await waitFor(() => window.location.pathname === '/applications' && container.textContent.includes('Step 4 Smoke'))
+  await waitFor(() => window.location.pathname === `${base}applications` && container.textContent.includes('Step 4 Smoke'))
   let records = await read()
   assert.equal(records.length, 1)
   const id = records[0].id
   await refresh()
   assert.match(container.textContent, /Step 4 Smoke/)
-  await click(container.querySelector(`a[href="/applications/${id}"]`))
-  await click(container.querySelector(`a[href="/applications/${id}/edit"]`))
+  await click(container.querySelector(`a[href="${base}applications/${id}"]`))
+  await click(container.querySelector(`a[href="${base}applications/${id}/edit"]`))
   await input('company', 'Step 4 Updated')
   await act(async () => container.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
-  await waitFor(() => window.location.pathname === '/applications/' + id)
+  await waitFor(() => window.location.pathname === `${base}applications/${id}`)
   await refresh()
   assert.match(container.textContent, /Step 4 Updated/)
-  await click(container.querySelector('a[href="/applications"]'))
+  await click(container.querySelector(`a[href="${base}applications"]`))
   await click(button('Board View'))
   const select = container.querySelector('.kanban-card select')
   await act(async () => {
@@ -89,9 +90,9 @@ try {
   records = await read()
   assert.equal(records[0].status, 'Offer')
   assert.equal(records[0].activity.at(-1).type, 'status_changed')
-  await click(container.querySelector(`a[href="/applications/${id}"]`))
+  await click(container.querySelector(`a[href="${base}applications/${id}"]`))
   await click(button('Delete application'))
-  await waitFor(() => window.location.pathname === '/applications')
+  await waitFor(() => window.location.pathname === `${base}applications`)
   await refresh()
   assert.equal((await read()).length, 0)
   assert.doesNotMatch(container.textContent, /Step 4 Updated/)
