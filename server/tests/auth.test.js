@@ -34,6 +34,78 @@ function register(body = valid) {
   })
 }
 
+function login(body = { email: valid.email, password: valid.password }) {
+  return fetch(baseUrl.replace('/register', '/login'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+}
+
+test('login verifies the registered bcrypt hash and returns only safe user fields', async t => {
+  const registered = await (await register()).json()
+  const stored = await User.collection.findOne({ email: valid.email })
+  assert.notEqual(stored.password, valid.password)
+  assert.equal((await User.findOne({ email: valid.email })).password, undefined)
+  const compare = t.mock.method(bcrypt, 'compare')
+  const response = await login({ email: '  DISHAN@Example.COM  ', password: valid.password })
+  assert.equal(response.status, 200)
+  const body = await response.json()
+  assert.deepEqual(body, registered)
+  assert.equal(compare.mock.callCount(), 1)
+  assert.deepEqual(compare.mock.calls[0].arguments, [valid.password, stored.password])
+  assert.ok(!JSON.stringify(body).includes(valid.password))
+  assert.ok(!JSON.stringify(body).includes(stored.password))
+})
+
+test('wrong password and unknown email return identical safe 401 responses', async () => {
+  await register()
+  for (const credentials of [
+    { email: valid.email, password: 'WrongPassword123' },
+    { email: 'unknown@example.com', password: valid.password },
+  ]) {
+    const response = await login(credentials)
+    assert.equal(response.status, 401)
+    assert.deepEqual(await response.json(), { message: 'Invalid email or password' })
+  }
+})
+
+for (const [label, body, message] of [
+  ['missing email', { password: valid.password }, 'A valid email address is required'],
+  ['blank email', { email: ' ', password: valid.password }, 'A valid email address is required'],
+  ['invalid email', { email: 'not-an-email', password: valid.password }, 'A valid email address is required'],
+  ['email object', { email: { $ne: null }, password: valid.password }, 'A valid email address is required'],
+  ['long email', { email: `${'a'.repeat(250)}@example.com`, password: valid.password }, 'A valid email address is required'],
+  ['missing password', { email: valid.email }, 'Password is required'],
+  ['blank password', { email: valid.email, password: ' ' }, 'Password is required'],
+  ['password object', { email: valid.email, password: { $ne: null } }, 'Password is required'],
+  ['array body', [], 'Invalid login data'],
+]) {
+  test(`login rejects ${label} with safe 400`, async () => {
+    const response = await login(body)
+    assert.equal(response.status, 400)
+    assert.deepEqual(await response.json(), { message })
+  })
+}
+
+test('login preserves password whitespace and rejects bcrypt truncation matches', async () => {
+  const password = '  StrongPassword123  '
+  await register({ ...valid, password })
+  assert.equal((await login({ email: valid.email, password })).status, 200)
+  assert.equal((await login({ email: valid.email, password: password.trim() })).status, 401)
+  await register({ ...valid, email: 'boundary@example.com', password: 'p'.repeat(72) })
+  for (const password of ['p'.repeat(73), `${'p'.repeat(72)}é`]) {
+    const response = await login({ email: 'boundary@example.com', password })
+    assert.equal(response.status, 401)
+    assert.deepEqual(await response.json(), { message: 'Invalid email or password' })
+  }
+})
+
+test('login database failures return a generic 500 without diagnostics', async t => {
+  t.mock.method(User, 'findOne', () => { throw new Error('Private database diagnostic') })
+  const response = await login()
+  assert.equal(response.status, 500)
+  assert.deepEqual(await response.json(), { message: 'Internal server error' })
+})
+
 test('registration returns 201 with only safe user fields and normalizes name/email', async () => {
   const response = await register({ ...valid, name: ' Dishan ', email: ' Dishan@Example.COM ', role: 'admin', userId: 'client-id' })
   assert.equal(response.status, 201)

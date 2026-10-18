@@ -1,6 +1,6 @@
 # InternTrack
 
-A beginner-friendly React application for tracking internship and job applications. Uses Vite, JavaScript, React Router, Context API, CSS, and a MongoDB-backed Express REST API; there is no authentication.
+A beginner-friendly React application for tracking internship and job applications. Uses Vite, JavaScript, React Router, Context API, CSS, and a MongoDB-backed Express REST API with backend registration and login credential verification.
 
 ## Run locally
 
@@ -106,7 +106,20 @@ Use test data for this local example. `POST /api/auth/register` returns HTTP 201
 
 The User model stores only name, email, a salted bcrypt password hash, and created/updated timestamps. [bcryptjs](https://github.com/dcodeIO/bcrypt.js/) hashes new or changed passwords before saving with cost 12. Passwords are excluded from default queries and JSON serialization; the endpoint explicitly returns only safe user fields. Invalid registration data returns 400, duplicate normalized email returns 409 (including concurrent registrations), and unexpected server failures return a generic 500. No new environment variables or secrets are required.
 
-This step adds registration only: no login, tokens, frontend authentication, or application ownership changes. Existing application routes remain unchanged. Registration tests run with `npm --prefix server test` and use the existing disposable MongoDB setup.
+Registration tests run with `npm --prefix server test` and use the existing disposable MongoDB setup.
+
+## Login API (Feature 02/60)
+
+With the backend running, log in using the disposable example account registered above:
+
+```powershell
+$login = @{ email = 'test.user@example.com'; password = 'LocalTestPassword123' } | ConvertTo-Json
+Invoke-RestMethod 'http://localhost:5000/api/auth/login' -Method Post -ContentType 'application/json' -Body $login
+```
+
+These are fictional development credentials. `POST /api/auth/login` trims and lowercases the email, explicitly selects the normally hidden password hash, and uses `bcrypt.compare()` with the exact submitted password. HTTP 200 returns only `{ "user": { "id": "...", "name": "Test User", "email": "test.user@example.com" } }`. Passwords and hashes are never returned or logged.
+
+Missing or invalid email and missing/blank/non-string passwords return 400. Unknown emails and incorrect passwords both return 401 with `{ "message": "Invalid email or password" }`. Passwords exceeding 72 UTF-8 bytes also return that 401 to prevent bcrypt truncation matches. Unexpected failures return generic 500 responses. This endpoint verifies credentials only; it creates no session or tokens and adds no frontend authentication, route protection, or application ownership. Existing application routes remain unchanged. Login and registration tests share the disposable MongoDB setup.
 
 ## Frontend source structure
 

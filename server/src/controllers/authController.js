@@ -31,3 +31,24 @@ export async function register(req, res) {
     throw failure
   }
 }
+
+export async function login(req, res) {
+  const body = req.body
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return res.status(400).json({ message: 'Invalid login data' })
+  }
+  if (typeof body.email !== 'string' || body.email.trim().length > 254 || !EMAIL_PATTERN.test(body.email.trim())) {
+    return res.status(400).json({ message: 'A valid email address is required' })
+  }
+  if (typeof body.password !== 'string' || !body.password.trim()) {
+    return res.status(400).json({ message: 'Password is required' })
+  }
+
+  const email = body.email.trim().toLowerCase()
+  const invalid = () => res.status(401).json({ message: 'Invalid email or password' })
+  // Reject truncation so a longer password cannot match a valid 72-byte prefix.
+  if (bcrypt.truncates(body.password)) return invalid()
+  const user = await User.findOne({ email }).select('+password')
+  if (!user || !await bcrypt.compare(body.password, user.password)) return invalid()
+  return res.status(200).json({ user: { id: user.id, name: user.name, email: user.email } })
+}
