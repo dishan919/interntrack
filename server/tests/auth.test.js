@@ -57,6 +57,104 @@ function patchProfile(token, body) {
   return fetch(baseUrl.replace('/register', '/me'), { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) })
 }
 
+function patchPassword(token, body) {
+  return fetch(baseUrl.replace('/register', '/password'), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body),
+  })
+}
+
+test('password change requires valid JWT, rejecting missing, invalid and expired tokens', async () => {
+  for (const token of [null, 'invalid', jwt.sign({ sub: '0123456789abcdef01234567' }, testSecret, { expiresIn: -1 })]) {
+    const response = await patchPassword(token, { currentPassword: valid.password, newPassword: 'ReplacementPassword123' })
+    assert.equal(response.status, 401)
+    assert.deepEqual(await response.json(), { message: 'Unauthorized' })
+  }
+})
+
+for (const newPassword of ['ReplacementPassword123', '  ReplacementPassword123  ', 'x'.repeat(72)]) {
+  test(`password change hashes once and preserves session (new length ${newPassword.length})`, async () => {
+    const user = await User.create(valid)
+    const token = jwt.sign({ sub: user.id }, testSecret, { expiresIn: '1h' })
+    const before = await User.collection.findOne({ _id: user._id })
+    const response = await patchPassword(token, { currentPassword: valid.password, newPassword })
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), { message: 'Password changed successfully.' })
+    const stored = await User.collection.findOne({ _id: user._id })
+    assert.notEqual(stored.password, newPassword)
+    assert.notEqual(stored.password, before.password)
+    assert.equal(bcrypt.getRounds(stored.password), 12)
+    assert.equal(await bcrypt.compare(newPassword, stored.password), true)
+    assert.equal(await bcrypt.compare(valid.password, stored.password), false)
+    assert.equal((await login()).status, 401)
+    assert.equal((await login({ email: valid.email, password: newPassword })).status, 200)
+    assert.equal((await currentUser(`Bearer ${token}`)).status, 200)
+    assert.equal(stored.name, valid.name)
+    assert.equal(stored.email, valid.email)
+  })
+}
+
+for (const [label, body, message] of [
+  ['wrong current', { currentPassword: 'WrongPassword123', newPassword: 'ReplacementPassword123' }, 'Current password is incorrect.'],
+  ['same password', { currentPassword: valid.password, newPassword: valid.password }, 'New password must be different from the current password.'],
+  ['missing current', { newPassword: 'ReplacementPassword123' }, 'Current password is required'],
+  ['blank current', { currentPassword: ' ', newPassword: 'ReplacementPassword123' }, 'Current password is required'],
+  ['object current', { currentPassword: {}, newPassword: 'ReplacementPassword123' }, 'Current password is required'],
+  ['missing new', { currentPassword: valid.password }, 'New password must be at least 8 characters'],
+  ['short new', { currentPassword: valid.password, newPassword: 'short' }, 'New password must be at least 8 characters'],
+  ['blank new', { currentPassword: valid.password, newPassword: ' '.repeat(8) }, 'New password must be at least 8 characters'],
+  ['object new', { currentPassword: valid.password, newPassword: {} }, 'New password must be at least 8 characters'],
+  ['long new', { currentPassword: valid.password, newPassword: 'x'.repeat(73) }, 'New password must be at most 72 UTF-8 bytes'],
+  ['multibyte new', { currentPassword: valid.password, newPassword: '😀'.repeat(19) }, 'New password must be at most 72 UTF-8 bytes'],
+  ['confirmation rejected', { currentPassword: valid.password, newPassword: 'ReplacementPassword123', confirmNewPassword: 'ReplacementPassword123' }, 'Invalid password change data'],
+  ['array', [], 'Invalid password change data'], ['null', null, 'Invalid request'],
+]) {
+  test(`password change rejects ${label} without changing the stored hash`, async () => {
+    const user = await User.create(valid)
+    const token = jwt.sign({ sub: user.id }, testSecret, { expiresIn: '1h' })
+    const before = await User.collection.findOne({ _id: user._id })
+    const response = await patchPassword(token, body)
+    assert.equal(response.status, 400)
+    assert.deepEqual(await response.json(), { message })
+    assert.deepEqual(await User.collection.findOne({ _id: user._id }), before)
+  })
+}
+
+test('password change cannot target another account or write unsupported fields', async () => {
+  const a = await User.create(valid)
+  const b = await User.create({ ...valid, email: 'other@example.com', password: 'OtherPassword123' })
+  const token = jwt.sign({ sub: a.id }, testSecret, { expiresIn: '1h' })
+  const beforeA = await User.collection.findOne({ _id: a._id })
+  const beforeB = await User.collection.findOne({ _id: b._id })
+  for (const key of ['userId', 'id', '_id', 'email', 'name', 'password', 'passwordHash', 'owner', 'role', 'accessToken', '$set']) {
+    const response = await patchPassword(token, { currentPassword: valid.password, newPassword: 'ReplacementPassword123', [key]: b.id })
+    assert.equal(response.status, 400)
+    assert.deepEqual(await response.json(), { message: 'Invalid password change data' })
+  }
+  assert.equal((await patchPassword(token, { currentPassword: 'OtherPassword123', newPassword: 'ReplacementPassword123' })).status, 400)
+  assert.deepEqual(await User.collection.findOne({ _id: a._id }), beforeA)
+  assert.deepEqual(await User.collection.findOne({ _id: b._id }), beforeB)
+})
+
+test('password change rejects bcrypt truncation matches and preserves exact current whitespace', async () => {
+  const user = await User.create({ ...valid, password: 'x'.repeat(72) })
+  const token = jwt.sign({ sub: user.id }, testSecret, { expiresIn: '1h' })
+  assert.equal((await patchPassword(token, { currentPassword: 'x'.repeat(73), newPassword: 'ReplacementPassword123' })).status, 400)
+  user.password = '  OriginalPassword123  '
+  await user.save()
+  assert.equal((await patchPassword(token, { currentPassword: 'OriginalPassword123', newPassword: 'ReplacementPassword123' })).status, 400)
+  assert.equal((await patchPassword(token, { currentPassword: '  OriginalPassword123  ', newPassword: 'ReplacementPassword123' })).status, 200)
+})
+
+test('password change deleted user returns 401 and database errors remain generic', async t => {
+  const token = jwt.sign({ sub: '0123456789abcdef01234567' }, testSecret, { expiresIn: '1h' })
+  const body = { currentPassword: valid.password, newPassword: 'ReplacementPassword123' }
+  assert.equal((await patchPassword(token, body)).status, 401)
+  t.mock.method(User, 'findById', () => { throw new Error('private bcrypt/database diagnostic') })
+  const response = await patchPassword(token, body)
+  assert.equal(response.status, 500)
+  assert.deepEqual(await response.json(), { message: 'Internal server error' })
+})
+
 test('profile PATCH requires JWT, including rejection of expired tokens', async () => {
   for (const token of [null, 'invalid', jwt.sign({ sub: '0123456789abcdef01234567' }, testSecret, { expiresIn: -1 })]) {
     const response = await patchProfile(token, { name: 'Updated' })

@@ -34,7 +34,7 @@ export default async function verify() {
     assert.deepEqual([...container.querySelectorAll('dd')].map(node => node.textContent), [user.name, user.email])
     assert.doesNotMatch(container.innerHTML, /private-password-marker|private-profile-token-marker/)
     assert.equal(container.querySelector('input'), null)
-    assert.match(container.textContent, /Password changes are not available here/)
+    assert.match(container.textContent, /change your password in Security/)
   }
   try {
     // Profile consumes context directly; it must not fetch or expose other fields.

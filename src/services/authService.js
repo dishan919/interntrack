@@ -99,3 +99,35 @@ export async function updateProfile(accessToken, updates) {
   const { id, name, email } = data.user
   return { user: { id, name, email } }
 }
+
+export async function changePassword(accessToken, { currentPassword, newPassword }) {
+  let response
+  try {
+    response = await fetch(`${API_URL}/auth/password`, {
+      method: 'PATCH', headers: { ...bearerHeaders(accessToken), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    })
+  } catch { throw new Error('Unable to reach the server. Check your connection and try again.') }
+  if (response.status === 401) {
+    invalidateSession(accessToken)
+    throw new Error('Your session has expired. Please sign in again.')
+  }
+  if (!response.ok) {
+    const safeMessages = new Set([
+      'Current password is required', 'Current password is incorrect.',
+      'New password must be at least 8 characters', 'New password must be at most 72 UTF-8 bytes',
+      'New password must be different from the current password.',
+    ])
+    let message
+    if (response.status === 400) {
+      try { message = (await response.json()).message } catch { /* Use safe fallback. */ }
+    }
+    throw new Error(response.status === 400
+      ? safeMessages.has(message) ? message : 'Please check your password details and try again.'
+      : 'Unable to change your password right now. Please try again.')
+  }
+  let data
+  try { data = await response.json() } catch { throw new Error('The server returned an invalid response. Please try again.') }
+  if (data?.message !== 'Password changed successfully.') throw new Error('The server returned an invalid response. Please try again.')
+  return { message: 'Password changed successfully.' }
+}

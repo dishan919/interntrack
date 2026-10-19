@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { validateProfile } from '../utils/profile'
+import ChangePassword from '../components/profile/ChangePassword'
 import '../styles/profile.css'
 
 export default function Profile() {
@@ -68,6 +69,7 @@ export default function Profile() {
         <button type="button" className="button secondary" onClick={logout}>Sign out</button>
       </div>
     </section>
-    <p className="profile-note">You can update your name and email. Password changes are not available here.</p>
+    <p className="profile-note">You can update your name and email, or change your password in Security.</p>
+    <ChangePassword />
   </>
 }

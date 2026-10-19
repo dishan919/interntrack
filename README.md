@@ -1,5 +1,11 @@
 # InternTrack
 
+## Change password (Feature 11/60)
+
+Authenticated users can open **Profile → Security → Change Password**. Provide the current password, a different new password, and matching confirmation. The form has independent Show/Hide controls, prevents duplicate submission, and clears/hides all password fields after success while keeping the current session signed in.
+
+`PATCH /api/auth/password` requires the existing Bearer JWT and accepts only `currentPassword` and `newPassword`; unknown fields are rejected. The account is selected exclusively by verified JWT identity. The backend verifies the current password with bcrypt, applies the registration policy (at least 8 characters, nonblank, at most 72 UTF-8 bytes), and preserves exact password whitespace. It saves through the existing model hook so only a bcrypt hash is stored. Confirmation remains frontend-only and is never sent. Incorrect current passwords return safe HTTP 400 feedback; invalid/expired JWTs retain the existing 401 session cleanup. Success returns only `{ "message": "Password changed successfully." }`. Existing JWTs remain valid until normal expiry; no session revocation is introduced. No passwords are logged or persisted in browser storage or AuthContext. Forgot/reset password is not implemented yet.
+
 ## User profile (Feature 09/60)
 
 Authenticated users can view their name and email on the protected `/profile` route (`/interntrack/profile` with the configured Vite base). Open **Profile** in the Student Workspace account menu. The page reads the verified user from AuthContext and reuses its existing Sign out action. Refresh restores the session through AuthProvider; viewing Profile makes no additional `/api/auth/me` request. Logged-out visitors are redirected to login.

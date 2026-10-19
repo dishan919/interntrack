@@ -88,3 +88,26 @@ export async function updateMe(req, res) {
     throw failure
   }
 }
+
+export async function changePassword(req, res) {
+  const body = req.body
+  if (!body || typeof body !== 'object' || Array.isArray(body)
+    || Object.keys(body).some(key => !['currentPassword', 'newPassword'].includes(key))) {
+    return res.status(400).json({ message: 'Invalid password change data' })
+  }
+  if (typeof body.currentPassword !== 'string' || !body.currentPassword.trim()) return res.status(400).json({ message: 'Current password is required' })
+  if (typeof body.newPassword !== 'string' || body.newPassword.length < MIN_PASSWORD_LENGTH || !body.newPassword.trim()) {
+    return res.status(400).json({ message: `New password must be at least ${MIN_PASSWORD_LENGTH} characters` })
+  }
+  if (bcrypt.truncates(body.newPassword)) return res.status(400).json({ message: 'New password must be at most 72 UTF-8 bytes' })
+  const user = await User.findById(req.auth.userId).select('+password')
+  if (!user) return res.status(401).json({ message: 'Unauthorized' })
+  // Reject bcrypt truncation matches; passwords retain their exact whitespace.
+  if (bcrypt.truncates(body.currentPassword) || !await bcrypt.compare(body.currentPassword, user.password)) {
+    return res.status(400).json({ message: 'Current password is incorrect.' })
+  }
+  if (body.newPassword === body.currentPassword) return res.status(400).json({ message: 'New password must be different from the current password.' })
+  user.password = body.newPassword
+  await user.save() // The existing pre-save hook hashes once with bcrypt cost 12.
+  return res.status(200).json({ message: 'Password changed successfully.' })
+}

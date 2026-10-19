@@ -11,8 +11,11 @@
 .profile-field [role="alert"] { color: #B91C1C; font-size: 13px; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 12px; padding: 20px 28px; }
 .profile-form .profile-actions { padding: 0; }
+.profile-security-intro { padding: 0 28px; }
+.profile-note + .profile-panel { margin-top: 24px; }
 @media (max-width: 640px) {
   .profile-fields { padding: 0 20px; }
   .profile-form { padding: 24px 20px; }
   .profile-actions { padding: 20px; }
+  .profile-security-intro { padding: 0 20px; }
 }
