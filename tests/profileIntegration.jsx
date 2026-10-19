@@ -34,7 +34,7 @@ export default async function verify() {
     assert.deepEqual([...container.querySelectorAll('dd')].map(node => node.textContent), [user.name, user.email])
     assert.doesNotMatch(container.innerHTML, /private-password-marker|private-profile-token-marker/)
     assert.equal(container.querySelector('input'), null)
-    assert.match(container.textContent, /Profile editing is not available yet/)
+    assert.match(container.textContent, /Password changes are not available here/)
   }
   try {
     // Profile consumes context directly; it must not fetch or expose other fields.
@@ -43,7 +43,7 @@ export default async function verify() {
     root = createRoot(container)
     await act(async () => root.render(<AuthContext.Provider value={{ user, accessToken: token, logout: () => loggedOut++ }}><Profile /></AuthContext.Provider>))
     assertProfile()
-    await click(container.querySelector('button'))
+    await click([...container.querySelectorAll('button')].find(button => button.textContent === 'Sign out'))
     assert.equal(loggedOut, 1, 'Profile uses the existing context logout action')
     await unmount()
 

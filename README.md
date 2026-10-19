@@ -2,7 +2,11 @@
 
 ## User profile (Feature 09/60)
 
-Authenticated users can view their name and email on the protected `/profile` route (`/interntrack/profile` with the configured Vite base). Open **Profile** in the Student Workspace account menu. The page reads the verified user from AuthContext and reuses its existing Sign out action. Refresh restores the session through AuthProvider; Profile makes no additional `/api/auth/me` request. Logged-out visitors are redirected to login. Profile editing is not implemented yet.
+Authenticated users can view their name and email on the protected `/profile` route (`/interntrack/profile` with the configured Vite base). Open **Profile** in the Student Workspace account menu. The page reads the verified user from AuthContext and reuses its existing Sign out action. Refresh restores the session through AuthProvider; viewing Profile makes no additional `/api/auth/me` request. Logged-out visitors are redirected to login.
+
+### Edit profile (Feature 10/60)
+
+Choose **Edit Profile**, change name/email, and choose **Save Changes** or **Cancel**. Saving calls authenticated `PATCH /api/auth/me` with an explicit name/email allowlist. Partial updates are supported by the API; names are trimmed (1–120 characters), emails are trimmed/lowercased and validated (maximum 254 characters), and duplicate emails return safe HTTP 409 feedback. Missing allowed fields or invalid data return 400; invalid/expired sessions return 401. Only the JWT user ID selects the account. Success returns `{ user: { id, name, email } }`, updates AuthContext and the account menu immediately, and preserves the existing JWT. Changes persist through refresh and the new email is used for future login. Password changes are intentionally not part of this feature.
 
 A beginner-friendly React application for tracking internship and job applications. Uses Vite, JavaScript, React Router, Context API, CSS, and a MongoDB-backed Express REST API with backend registration and login credential verification.
 

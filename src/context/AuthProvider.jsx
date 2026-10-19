@@ -46,5 +46,15 @@ export default function AuthProvider({ children }) {
     setSession({ user: result.user, accessToken: result.accessToken, isAuthLoading: false })
   }
 
-  return <AuthContext.Provider value={{ ...session, isAuthenticated: Boolean(session.user && session.accessToken), login, logout }}>{children}</AuthContext.Provider>
+  async function updateProfile(updates) {
+    const attempt = version.current
+    const token = session.accessToken
+    if (!token || !session.user) throw new Error('Please sign in again.')
+    const result = await service.updateProfile(token, updates)
+    if (attempt !== version.current) throw new Error('Profile update was cancelled. Please sign in again.')
+    setSession(current => current.accessToken === token ? { ...current, user: result.user } : current)
+    return result.user
+  }
+
+  return <AuthContext.Provider value={{ ...session, isAuthenticated: Boolean(session.user && session.accessToken), login, logout, updateProfile }}>{children}</AuthContext.Provider>
 }

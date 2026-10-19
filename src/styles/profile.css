@@ -4,6 +4,15 @@
 .profile-fields dt { margin-bottom: 8px; color: var(--muted); font-size: 13px; }
 .profile-fields dd { margin: 0; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
 .profile-note { margin-top: 20px; color: var(--muted); font-size: 13px; }
+.profile-form { padding: 24px 28px; }
+.profile-field { display: grid; gap: 8px; margin-bottom: 20px; }
+.profile-field label { font-size: 13px; font-weight: 600; }
+.profile-field input { width: 100%; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+.profile-field [role="alert"] { color: #B91C1C; font-size: 13px; }
+.profile-actions { display: flex; flex-wrap: wrap; gap: 12px; padding: 20px 28px; }
+.profile-form .profile-actions { padding: 0; }
 @media (max-width: 640px) {
   .profile-fields { padding: 0 20px; }
+  .profile-form { padding: 24px 20px; }
+  .profile-actions { padding: 20px; }
 }

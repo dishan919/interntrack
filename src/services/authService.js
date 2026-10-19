@@ -1,4 +1,4 @@
-import { bearerHeaders } from './authSession.js'
+import { bearerHeaders, invalidateSession } from './authSession.js'
 
 const API_URL = (import.meta.env?.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '')
 const safeValidationMessages = new Set([
@@ -72,6 +72,30 @@ export async function getCurrentUser(accessToken) {
   if (!data?.user || !['id', 'name', 'email'].every(key => typeof data.user[key] === 'string')) {
     throw new Error('The server returned an invalid response. Please sign in again.')
   }
+  const { id, name, email } = data.user
+  return { user: { id, name, email } }
+}
+
+export async function updateProfile(accessToken, updates) {
+  const body = {}
+  for (const key of ['name', 'email']) {
+    if (Object.hasOwn(updates, key)) body[key] = typeof updates[key] === 'string' ? updates[key].trim() : updates[key]
+  }
+  let response
+  try {
+    response = await fetch(`${API_URL}/auth/me`, {
+      method: 'PATCH', headers: { ...bearerHeaders(accessToken), 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+  } catch { throw new Error('Unable to reach the server. Check your connection and try again.') }
+  if (response.status === 401) {
+    invalidateSession(accessToken)
+    throw new Error('Your session has expired. Please sign in again.')
+  }
+  if (response.status === 409) throw new Error('An account with this email already exists.')
+  if (!response.ok) throw new Error(response.status === 400 ? 'Please check your name and email and try again.' : 'Unable to update your profile right now. Please try again.')
+  let data
+  try { data = await response.json() } catch { throw new Error('The server returned an invalid response. Please try again.') }
+  if (!data?.user || !['id', 'name', 'email'].every(key => typeof data.user[key] === 'string' && data.user[key].trim())) throw new Error('The server returned an invalid response. Please try again.')
   const { id, name, email } = data.user
   return { user: { id, name, email } }
 }

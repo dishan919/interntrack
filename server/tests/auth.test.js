@@ -53,6 +53,87 @@ function currentUser(authorization) {
   })
 }
 
+function patchProfile(token, body) {
+  return fetch(baseUrl.replace('/register', '/me'), { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) })
+}
+
+test('profile PATCH requires JWT, including rejection of expired tokens', async () => {
+  for (const token of [null, 'invalid', jwt.sign({ sub: '0123456789abcdef01234567' }, testSecret, { expiresIn: -1 })]) {
+    const response = await patchProfile(token, { name: 'Updated' })
+    assert.equal(response.status, 401)
+    assert.deepEqual(await response.json(), { message: 'Unauthorized' })
+  }
+})
+
+for (const updates of [{ name: '  New Name  ' }, { email: '  NEW@EXAMPLE.COM  ' }, { name: 'Both Updated', email: 'both@example.com' }, { email: valid.email.toUpperCase() }]) {
+  test(`profile PATCH partial update ${JSON.stringify(updates)} preserves identity/password/JWT`, async () => {
+    const user = await User.create(valid)
+    const token = jwt.sign({ sub: user.id }, testSecret, { expiresIn: '1h' })
+    const beforeUser = await User.collection.findOne({ _id: user._id })
+    const response = await patchProfile(token, updates)
+    assert.equal(response.status, 200)
+    const expected = { user: { id: user.id, name: updates.name?.trim() || valid.name, email: updates.email?.trim().toLowerCase() || valid.email } }
+    assert.deepEqual(await response.json(), expected)
+    assert.deepEqual(await (await currentUser(`Bearer ${token}`)).json(), expected)
+    const afterUser = await User.collection.findOne({ _id: user._id })
+    assert.equal(afterUser.password, beforeUser.password)
+  })
+}
+
+test('profile PATCH cannot target another user or change sensitive fields', async () => {
+  const a = await User.create(valid)
+  const b = await User.create({ ...valid, email: 'other@example.com' })
+  const beforeA = await User.collection.findOne({ _id: a._id })
+  const beforeB = await User.collection.findOne({ _id: b._id })
+  const token = jwt.sign({ sub: a.id }, testSecret, { expiresIn: '1h' })
+  const response = await patchProfile(token, { name: 'Only A', userId: b.id, id: b.id, _id: b.id, owner: b.id, role: 'admin', password: 'ChangedPassword123', passwordHash: 'forged', accessToken: 'forged', $set: { email: b.email } })
+  assert.equal(response.status, 200)
+  assert.deepEqual(await response.json(), { user: { id: a.id, name: 'Only A', email: a.email } })
+  const afterA = await User.collection.findOne({ _id: a._id })
+  assert.equal(afterA.password, beforeA.password)
+  for (const key of ['role', 'owner', 'passwordHash', 'accessToken', 'userId']) assert.equal(afterA[key], undefined)
+  assert.deepEqual(await User.collection.findOne({ _id: b._id }), beforeB)
+})
+
+for (const [label, body] of [
+  ['empty', {}], ['unsupported only', { password: 'ChangedPassword123', userId: 'other' }],
+  ['blank name', { name: '   ' }], ['null name', { name: null }], ['long name', { name: 'x'.repeat(121) }],
+  ['invalid email', { email: 'invalid' }], ['blank email', { email: ' ' }], ['null email', { email: null }],
+  ['long email', { email: `${'a'.repeat(250)}@example.com` }], ['array', []], ['null', null],
+  ['atomic validation', { name: 'Do not save', email: 'invalid' }],
+]) {
+  test(`profile PATCH rejects ${label} without changing the user`, async () => {
+    const user = await User.create(valid)
+    const token = jwt.sign({ sub: user.id }, testSecret, { expiresIn: '1h' })
+    const beforeUser = await User.collection.findOne({ _id: user._id })
+    assert.equal((await patchProfile(token, body)).status, 400)
+    assert.deepEqual(await User.collection.findOne({ _id: user._id }), beforeUser)
+  })
+}
+
+test('profile PATCH handles duplicate normalized email and database unique-index races safely', async () => {
+  const a = await User.create(valid)
+  const b = await User.create({ ...valid, email: 'other@example.com' })
+  const tokenA = jwt.sign({ sub: a.id }, testSecret, { expiresIn: '1h' })
+  const tokenB = jwt.sign({ sub: b.id }, testSecret, { expiresIn: '1h' })
+  const duplicate = await patchProfile(tokenA, { name: 'Must not change', email: ' OTHER@EXAMPLE.COM ' })
+  assert.equal(duplicate.status, 409)
+  assert.deepEqual(await duplicate.json(), { message: 'An account with this email already exists' })
+  assert.equal((await User.findById(a.id)).name, a.name)
+  const results = await Promise.all([patchProfile(tokenA, { email: 'race@example.com' }), patchProfile(tokenB, { email: 'RACE@example.com' })])
+  assert.deepEqual(results.map(result => result.status).sort(), [200, 409])
+  assert.equal(await User.countDocuments({ email: 'race@example.com' }), 1)
+})
+
+test('profile PATCH deleted user returns 401 and database failures stay generic', async t => {
+  const token = jwt.sign({ sub: '0123456789abcdef01234567' }, testSecret, { expiresIn: '1h' })
+  assert.equal((await patchProfile(token, { name: 'Updated' })).status, 401)
+  t.mock.method(User, 'findByIdAndUpdate', async () => { throw new Error('private database diagnostic') })
+  const response = await patchProfile(token, { name: 'Updated' })
+  assert.equal(response.status, 500)
+  assert.deepEqual(await response.json(), { message: 'Internal server error' })
+})
+
 test('/me accepts a login token and returns only safe current user fields', async () => {
   const registered = await (await register()).json()
   const { accessToken } = await (await login()).json()

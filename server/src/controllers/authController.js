@@ -62,3 +62,29 @@ export async function me(req, res) {
   if (!user) return res.status(401).json({ message: 'Unauthorized' })
   return res.status(200).json({ user: { id: user.id, name: user.name, email: user.email } })
 }
+
+export async function updateMe(req, res) {
+  const body = req.body
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return res.status(400).json({ message: 'Invalid profile data' })
+  const updates = {}
+  if (Object.hasOwn(body, 'name')) {
+    if (typeof body.name !== 'string' || !body.name.trim()) return res.status(400).json({ message: 'Name is required' })
+    if (body.name.trim().length > 120) return res.status(400).json({ message: 'Name must be at most 120 characters' })
+    updates.name = body.name.trim()
+  }
+  if (Object.hasOwn(body, 'email')) {
+    if (typeof body.email !== 'string' || body.email.trim().length > 254 || !EMAIL_PATTERN.test(body.email.trim())) return res.status(400).json({ message: 'A valid email address is required' })
+    updates.email = body.email.trim().toLowerCase()
+  }
+  if (!Object.keys(updates).length) return res.status(400).json({ message: 'Provide a name or email to update' })
+  try {
+    await User.init()
+    // Explicit $set allowlist and verified identity; never spread client data.
+    const user = await User.findByIdAndUpdate(req.auth.userId, { $set: updates }, { returnDocument: 'after', runValidators: true })
+    if (!user) return res.status(401).json({ message: 'Unauthorized' })
+    return res.status(200).json({ user: { id: user.id, name: user.name, email: user.email } })
+  } catch (failure) {
+    if (failure.code === 11000) return res.status(409).json({ message: 'An account with this email already exists' })
+    throw failure
+  }
+}
