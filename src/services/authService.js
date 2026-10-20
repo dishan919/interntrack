@@ -192,3 +192,30 @@ export function verifyEmail(token) {
 export function resendEmailVerification(accessToken) {
   return verificationRequest('resend-verification', {}, accessToken)
 }
+
+export async function deleteAccount(accessToken, currentPassword) {
+  let response
+  try {
+    response = await fetch(`${API_URL}/auth/me`, {
+      method: 'DELETE', headers: { ...bearerHeaders(accessToken), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword }),
+    })
+  } catch { throw new Error('Unable to reach the server. Check your connection and try again.') }
+  if (response.status === 401) {
+    invalidateSession(accessToken)
+    throw new Error('Your session has expired. Please sign in again.')
+  }
+  if (!response.ok) {
+    const safe = new Set(['Current password is required', 'Current password is incorrect.'])
+    let message
+    if (response.status === 400) {
+      try { message = (await response.json()).message } catch { /* Safe fallback. */ }
+    }
+    throw new Error(response.status === 409 ? 'Account changed. Please sign in again and retry.'
+      : safe.has(message) ? message : 'Unable to delete your account right now. Please try again.')
+  }
+  let data
+  try { data = await response.json() } catch { throw new Error('The server returned an invalid response. Please try again.') }
+  if (data?.message !== 'Account deleted successfully.') throw new Error('The server returned an invalid response. Please try again.')
+  return { message: 'Account deleted successfully.' }
+}

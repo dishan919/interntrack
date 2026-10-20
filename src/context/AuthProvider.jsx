@@ -56,6 +56,16 @@ export default function AuthProvider({ children }) {
     return result.user
   }
 
+  async function deleteAccount(currentPassword) {
+    const attempt = version.current
+    const token = session.accessToken
+    if (!token || !session.user) throw new Error('Please sign in again.')
+    const result = await service.deleteAccount(token, currentPassword)
+    // A late response for a deleted older account must not sign out a newer login.
+    if (attempt === version.current) logout()
+    return result
+  }
+
   const refreshCurrentUser = useCallback(async () => {
     const attempt = version.current
     const token = session.accessToken
@@ -66,5 +76,5 @@ export default function AuthProvider({ children }) {
     return result.user
   }, [session.accessToken])
 
-  return <AuthContext.Provider value={{ ...session, isAuthenticated: Boolean(session.user && session.accessToken), login, logout, updateProfile, refreshCurrentUser }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ ...session, isAuthenticated: Boolean(session.user && session.accessToken), login, logout, updateProfile, refreshCurrentUser, deleteAccount }}>{children}</AuthContext.Provider>
 }

@@ -1,3 +1,4 @@
+import existingAccount from '../middleware/existingAccount.js'
 import { Router } from 'express'
 import authenticate from '../middleware/authenticate.js'
 import {
@@ -8,7 +9,7 @@ const router = Router()
 
 router.use(authenticate)
 
-router.route('/').get(getApplications).post(createApplication)
-router.route('/:id').get(getApplication).put(updateApplication).delete(deleteApplication)
+router.route('/').get(existingAccount(getApplications)).post(existingAccount(createApplication))
+router.route('/:id').get(existingAccount(getApplication)).put(existingAccount(updateApplication)).delete(existingAccount(deleteApplication))
 
 export default router

@@ -1,3 +1,4 @@
+import { deleteAccount } from '../controllers/accountDeletionController.js'
 import { verifyEmail, resendVerification } from '../controllers/emailVerificationController.js'
 import { forgotPassword, resetPassword } from '../controllers/passwordResetController.js'
 import { Router } from 'express'
@@ -13,6 +14,7 @@ router.post('/login', login)
 router.post('/forgot-password', forgotPassword)
 router.post('/reset-password', resetPassword)
 router.get('/me', authenticate, me)
+router.delete('/me', authenticate, deleteAccount)
 router.patch('/me', authenticate, updateMe)
 router.patch('/password', authenticate, changePassword)
 

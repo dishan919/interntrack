@@ -584,3 +584,111 @@ Manual testing for Feature 13 (use a disposable local account/database):
 12. Run `npm test`, `npm run test:integration`, `npm --prefix server test`,
     `npm run test:smoke`, `npm run lint`, `npm run build`, and `git diff --check`.
     Backend/smoke suites use disposable MongoDB and test-only in-memory delivery.
+
+
+### Feature 14: secure account deletion
+
+`DELETE /api/auth/me` requires the existing `Authorization: Bearer <accessToken>`
+header, `Content-Type: application/json`, and exactly:
+
+```json
+{ "currentPassword": "<current-password>" }
+```
+
+The account identity comes exclusively from verified `req.auth.userId`. Unknown
+body fields, including userId/id/email/reset/verification fields, receive HTTP 400.
+The current password is required and verified against the stored bcrypt hash without
+trimming; bcrypt truncation matches are rejected. Wrong passwords receive the safe
+400 message "Current password is incorrect." Missing/deleted/invalid sessions receive
+401. Successful deletion returns only `{ "message": "Account deleted successfully." }`.
+No deleted user, password, hash, reset/verification token, or secret is returned.
+
+Deletion is permanent. All applications matching the existing `owner` field for the
+JWT user are removed, then that user is removed. Other users, their applications,
+and unrelated ownerless legacy records remain untouched. Reset/verification state
+disappears with the user. Login and `/me` reject the deleted account. Application
+routes now check that the JWT's user still exists, so a cryptographically unexpired
+old token cannot list/create/read/update/delete applications after deletion.
+
+**Consistency strategy:** the existing development/test setup uses standalone MongoDB,
+so this feature does not require replica sets or introduce transactions. A small
+per-account in-process queue serializes deletion and application operations in the
+current single Node API process. An operation already running finishes before deletion
+and its data is included in cleanup; operations waiting behind successful deletion
+recheck user existence and receive 401. Other accounts are not blocked. Queue entries
+are released on failures and discarded when idle.
+
+Application cleanup runs before user deletion. If cleanup throws, user deletion is
+not attempted and success is not returned. If the final user removal fails, the account
+is retained but application data may already have been deleted. A concurrent password
+change/reset is checked by matching the previously verified password hash in the final
+user delete; a mismatch returns 409 and retains the account, with the same possible
+partial application cleanup. The operation can be retried with the current password.
+There is no rollback guarantee on standalone MongoDB, and a process crash between
+steps can leave a retained account with fewer applications. The queue coordinates this
+single API process only; it does not protect multiple API workers or direct database
+writers. Before scaling to multiple writers, use a database-level transactional strategy
+that coordinates application creation with deletion. No soft-delete or recovery state
+is added here.
+
+Profile now has a separate Danger Zone. The first Delete Account click only opens an
+explicit warning/confirmation form with Current Password, accessible Show/Hide, a final
+Delete Account action and Cancel. Cancel makes no request and clears the field. Required
+validation blocks blank passwords. Pending deletion disables its controls and other
+Profile account/password/verification controls and prevents duplicate submissions.
+
+`authService.deleteAccount(accessToken, currentPassword)` owns the HTTP contract and
+sanitizes errors. AuthProvider's deleteAccount action calls the service and reuses logout
+only after confirmed success. This removes the sessionStorage JWT, clears user/auth
+state, unmounts and clears the private ApplicationProvider, and redirects to the existing
+public Login route without reloading the browser. A stale deletion response cannot log
+out a newer session. Wrong-password/network/server failures preserve the current frontend
+user and application state; matching 401 responses use normal expired-session cleanup.
+A network failure after the server commits can leave an uncertain result: no success is
+claimed; the next authenticated account check will reject an already deleted account.
+
+Manual testing (use only disposable local accounts and applications):
+
+1. Configure the existing server/frontend `.env` files and a local test database.
+   From the project root run `npm --prefix server run dev` in one terminal and
+   `npm run dev` in another. Open the Vite URL under its configured basename,
+   normally `http://localhost:5173/interntrack/`.
+2. In the main browser, register/log in as disposable User A and create applications
+   A1 and A2. In a separate private browser session, register/log in as disposable
+   User B and create B1. Confirm each account sees only its own records.
+3. In A's session open Profile. Confirm existing profile edit, password change, and
+   email verification controls remain present. Scroll to Danger Zone. Click Delete
+   Account once: a permanent-deletion warning and confirmation form should open,
+   with no DELETE request in browser Network tools.
+4. Submit without a password: required feedback appears and no DELETE request is
+   sent. Use Show/Hide: the control changes its accessible label/input type without
+   submitting. Type a value and click Cancel: no DELETE request occurs. Reopen and
+   confirm the password is empty and hidden again.
+5. Enter an incorrect password and submit. Expect safe wrong-password feedback,
+   continued authentication, and unchanged A1/A2 on Applications. Return to Profile.
+   Stop the API and try again to check safe connection feedback without logging out
+   or clearing the currently loaded application state; restart the API afterward.
+6. Optional old-JWT check: before deletion, in browser DevTools Console assign
+   `const deletionTestJwt = sessionStorage.getItem('interntrack_access_token')`.
+   Keep this value only in that local console's memory; do not print or share it.
+7. Return to Danger Zone and submit A's exact current password. Inspect Network:
+   DELETE `/api/auth/me` sends only currentPassword and the Bearer header. While it
+   is pending, the form and conflicting Profile controls are disabled. Slow the
+   request with DevTools throttling if needed to inspect duplicate-submit protection.
+8. On success the app goes to Login under the basename without a browser refresh;
+   A's profile/applications disappear, and sessionStorage no longer contains the JWT.
+   Network response must contain only the fixed success message. Attempting login
+   with A's former credentials must fail.
+9. For the optional old-JWT check, after deletion run the following local console
+   expression (adjust the API origin if configured differently):
+   `await fetch('http://localhost:5000/api/auth/me', { headers: { Authorization: 'Bearer ' + deletionTestJwt } }).then(response => response.status)`.
+   It must return 401 without printing the token. The same old header on GET/POST
+   `/api/applications` must also receive 401 and must not create any data.
+10. In B's separate session reload Applications: B1 remains, Profile still exists,
+    and B can log out and back in. Log B into the main session as well and confirm
+    no stale A1/A2 data appears. In the disposable database verify A/A1/A2 are gone,
+    while B/B1 remain. Do not run these destructive checks against real user data.
+11. Run `npm test`, `npm run test:integration`, `npm --prefix server test`,
+    `npm run test:smoke`, `npm run lint`, `npm run build`, and `git diff --check`.
+    Backend tests exercise cleanup/final-delete failures, retries and concurrency
+    using disposable MongoDB; the smoke test covers real UI/API two-user isolation.

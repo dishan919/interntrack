@@ -2,11 +2,13 @@ import { useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { validateProfile } from '../utils/profile'
 import EmailVerification from '../components/profile/EmailVerification'
+import DeleteAccount from '../components/profile/DeleteAccount'
 import ChangePassword from '../components/profile/ChangePassword'
 import '../styles/profile.css'
 
 export default function Profile() {
   const { user, logout, updateProfile } = useAuth()
+  const [deletionPending, setDeletionPending] = useState(false)
   const [editing, setEditing] = useState(false)
   const [values, setValues] = useState({ name: '', email: '' })
   const [errors, setErrors] = useState({})
@@ -45,6 +47,7 @@ export default function Profile() {
       <p>View your InternTrack account information.</p>
     </div></div>
     {message && <div className="notice" role="status">{message}</div>}
+    <fieldset className="profile-controls" disabled={deletionPending}>
     <section className="panel profile-panel" aria-labelledby="account-heading">
       <div className="panel-heading"><h2 id="account-heading">Account information</h2></div>
       {editing ? <form className="profile-form" ref={formRef} onSubmit={save} noValidate aria-busy={pending}>
@@ -73,5 +76,7 @@ export default function Profile() {
     </section>
     <p className="profile-note">You can update your name and email, or change your password in Security.</p>
     <ChangePassword />
+    </fieldset>
+    <DeleteAccount onPendingChange={setDeletionPending} />
   </>
 }

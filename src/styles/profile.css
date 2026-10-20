@@ -19,3 +19,10 @@
   .profile-actions { padding: 20px; }
   .profile-security-intro { padding: 0 20px; }
 }
+
+.profile-danger { margin-top: 24px; border-color: #b91c1c; }
+.profile-danger .button.danger { background: #b91c1c; color: #fff; border: 1px solid #b91c1c; }
+.profile-danger .button.danger:hover { background: #991b1b; }
+.profile-danger .button.danger:disabled { opacity: 0.6; cursor: wait; }
+
+.profile-controls { border: 0; margin: 0; padding: 0; min-width: 0; }
