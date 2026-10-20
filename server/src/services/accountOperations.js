@@ -1,4 +1,4 @@
-// Serialize account deletion with application operations in the current single
+// Serialize deletion with application and login-activity operations in the single
 // Node process. No database transaction/replica set or persistent deletion state.
 const queues = new Map()
 export async function withAccountOperation(userId, operation) {

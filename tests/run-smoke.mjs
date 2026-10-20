@@ -4,6 +4,7 @@ import { once } from 'node:events'
 import { JSDOM } from 'jsdom'
 import { createServer, resolveConfig } from 'vite'
 import User from '../server/src/models/User.js'
+import LoginActivity from '../server/src/models/LoginActivity.js'
 import app from '../server/src/app.js'
 import { setTestVerificationCapture } from '../server/src/services/emailVerification.js'
 import { setTestResetCapture } from '../server/src/services/passwordResetDelivery.js'
@@ -44,6 +45,8 @@ try {
   // Assert production transport supplies Bearer headers; never inject them here.
   globalThis.fetch = (url, options) => {
     if (url.includes('/applications')) assert.equal(options?.headers?.Authorization, `Bearer ${window.sessionStorage.getItem('interntrack_access_token')}`)
+    // Simulate a browser's self-reported agent in this Node-based UI renderer.
+    if (url.endsWith('/auth/login')) return originalFetch(url, { ...options, headers: { ...options?.headers, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 Safari/537.36' } })
     return originalFetch(url, options)
   }
   console.log('Smoke: starting test renderer')
@@ -63,7 +66,8 @@ try {
     if (root) await act(async () => root.unmount())
     root = createRoot(container)
     await act(async () => root.render(createElement(App)))
-    await waitFor(() => !container.textContent.includes('Loading applications') && !container.textContent.includes('Checking your session'))
+    await waitFor(() => !container.textContent.includes('Loading applications') && !container.textContent.includes('Checking your session')
+      && container.querySelector('[aria-labelledby="login-activity-heading"]')?.getAttribute('aria-busy') !== 'true')
   }
   async function input(name, value) {
     const element = container.querySelector(`[name="${name}"]`)
@@ -131,9 +135,27 @@ try {
   assert.match(container.textContent, /Smoke User/)
   assert.match(container.textContent, /smoke@example.com/)
   const profileToken = window.sessionStorage.getItem('interntrack_access_token')
+  const activityPanel = () => container.querySelector('[aria-labelledby="login-activity-heading"]')
+  await waitFor(() => activityPanel()?.querySelectorAll('li').length >= 2)
+  assert.match(activityPanel().textContent, /Chrome on Windows/)
+  assert.match(activityPanel().textContent, /IP address: 127.0.0.1/)
+  const loginHistory = async sessionToken => {
+    const result = await originalFetch(process.env.VITE_API_URL + '/auth/login-activity', { headers: { Authorization: `Bearer ${sessionToken}` } })
+    assert.equal(result.status, 200)
+    return (await result.json()).activities
+  }
+  const beforeFailedLogin = await loginHistory(profileToken)
+  assert.equal((await originalFetch(process.env.VITE_API_URL + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'smoke@example.com', password: 'WrongPassword123' }) })).status, 401)
+  assert.equal((await loginHistory(profileToken)).length, beforeFailedLogin.length)
+  await click([...activityPanel().querySelectorAll('button')].find(element => element.textContent === 'Refresh'))
+  await waitFor(() => activityPanel()?.getAttribute('aria-busy') === 'false')
+  assert.equal(activityPanel().querySelectorAll('li').length, beforeFailedLogin.length)
+  assert.ok(beforeFailedLogin.every((entry, index, all) => index === 0 || Date.parse(all[index - 1].loggedInAt) >= Date.parse(entry.loggedInAt)))
+  for (const entry of beforeFailedLogin) assert.deepEqual(Object.keys(entry).sort(), ['id', 'ipAddress', 'loggedInAt', 'userAgent'])
+
   assert.match(container.textContent, /Not verified/)
   await click(button('Resend Verification'))
-  await waitFor(() => container.textContent.includes('Verification instructions have been requested.'))
+  await waitFor(() => container.textContent.includes('Verification instructions have been requested.') && button('Resend Verification') && !button('Resend Verification').disabled)
   assert.ok(verificationDelivery?.token)
   window.history.replaceState({}, '', `${base}verify-email?token=${verificationDelivery.token}`)
   await refresh()
@@ -209,7 +231,7 @@ try {
   await click(container.querySelector(`a[href="${base}profile"]`))
   assert.match(container.textContent, /Not verified/)
   await click(button('Resend Verification'))
-  await waitFor(() => container.textContent.includes('Verification instructions have been requested.'))
+  await waitFor(() => container.textContent.includes('Verification instructions have been requested.') && button('Resend Verification') && !button('Resend Verification').disabled)
   const firstVerification = verificationDelivery.token
   await click(button('Resend Verification'))
   await waitFor(() => !container.textContent.includes('Requesting verification...'))
@@ -235,6 +257,10 @@ try {
   const otherUser = (await otherRegistration.json()).user
   const otherLoginResponse = await originalFetch(process.env.VITE_API_URL + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(otherCredentials) })
   const otherLogin = await otherLoginResponse.json()
+  const otherHistory = await loginHistory(otherLogin.accessToken)
+  assert.equal(otherHistory.length, 1)
+  assert.ok(otherHistory.every(item => !(beforeFailedLogin.some(own => own.id === item.id))))
+
   const createOwned = (sessionToken, company) => originalFetch(process.env.VITE_API_URL + '/applications', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` }, body: JSON.stringify({ company, position: 'Intern' }) })
   assert.equal((await createOwned(verificationSession, 'Deleted Smoke A1')).status, 201)
   assert.equal((await createOwned(verificationSession, 'Deleted Smoke A2')).status, 201)
@@ -260,6 +286,11 @@ try {
   assert.doesNotMatch(container.textContent, /Updated Smoke User|Deleted Smoke A1|Deleted Smoke A2/)
   assert.equal(await User.findById(user.id), null)
   assert.ok(await User.findById(otherUser.id))
+  assert.equal(await LoginActivity.countDocuments({ user: user.id }), 0)
+  assert.equal(await LoginActivity.countDocuments({ user: otherUser.id }), 1)
+  assert.deepEqual(await loginHistory(otherLogin.accessToken), otherHistory)
+  assert.equal((await originalFetch(process.env.VITE_API_URL + '/auth/login-activity', { headers: { Authorization: `Bearer ${verificationSession}` } })).status, 401)
+
   assert.equal((await originalFetch(process.env.VITE_API_URL + '/auth/me', { headers: { Authorization: `Bearer ${verificationSession}` } })).status, 401)
   assert.equal((await createOwned(verificationSession, 'Must Not Be Created')).status, 401)
   const deletedLogin = await originalFetch(process.env.VITE_API_URL + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'updated.smoke@example.com', password: 'ResetSmokePassword789' }) })
@@ -270,6 +301,17 @@ try {
   await waitFor(() => window.location.pathname === base && container.textContent.includes('Retained Smoke B1'))
   assert.doesNotMatch(container.textContent, /Deleted Smoke A1|Deleted Smoke A2/)
   console.log('PASS: real API delete confirmation/reauthentication, A1/A2 cleanup, session/private-state removal, old JWT rejection and retained B/B1 login')
+  await click(container.querySelector('[aria-label="Student Workspace"]'))
+  await click(container.querySelector(`a[href="${base}profile"]`))
+  await waitFor(() => activityPanel()?.querySelectorAll('li').length === 2)
+  assert.match(activityPanel().textContent, /Chrome on Windows/)
+  assert.ok(!JSON.stringify(window.sessionStorage).includes('ipAddress'))
+  assert.ok(!JSON.stringify(window.localStorage).includes('loggedInAt'))
+  await click(button('Sign out'))
+  await waitFor(() => window.location.pathname === `${base}login`)
+  assert.equal(activityPanel(), null)
+  console.log('PASS: real API login history recording/order/refresh, no failed-login record, A/B isolation, deletion cleanup, old JWT rejection and private UI removal')
+
 
 
   console.log('PASS: real API session restoration, UI logout/login to dashboard, and invalid-token cleanup')

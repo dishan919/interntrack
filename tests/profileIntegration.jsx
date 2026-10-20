@@ -37,8 +37,11 @@ export default async function verify() {
     assert.match(container.textContent, /change your password in Security/)
   }
   try {
-    // Profile consumes context directly; it must not fetch or expose other fields.
-    globalThis.fetch = () => { throw new Error('Profile must not fetch') }
+    // Account details consume context; only the separate activity panel fetches history.
+    globalThis.fetch = async url => {
+      assert.ok(url.endsWith('/auth/login-activity'), 'Profile must not refetch account details')
+      return new Response('{"activities":[]}')
+    }
     let loggedOut = 0
     root = createRoot(container)
     await act(async () => root.render(<AuthContext.Provider value={{ user, accessToken: token, logout: () => loggedOut++ }}><Profile /></AuthContext.Provider>))
@@ -49,6 +52,7 @@ export default async function verify() {
 
     globalThis.fetch = async (url, options) => {
       calls.push({ url, options })
+      if (url.endsWith('/auth/login-activity')) return new Response('{"activities":[]}')
       if (url.endsWith('/auth/me')) {
         assert.equal(options.headers.Authorization, `Bearer ${token}`)
         return new Response(JSON.stringify({ user }))

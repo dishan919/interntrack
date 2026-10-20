@@ -33,6 +33,7 @@ export default async function verify() {
   try {
     window.sessionStorage.setItem(TOKEN_KEY, token)
     globalThis.fetch = async (url, options = {}) => {
+      if (url.endsWith('/auth/login-activity')) return new Response('{"activities":[]}')
       if (url.endsWith('/applications')) return new Response('[]')
       assert.ok(url.endsWith('/auth/me'))
       if (options.method !== 'PATCH') return new Response(JSON.stringify({ user }))

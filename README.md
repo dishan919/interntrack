@@ -604,7 +604,7 @@ trimming; bcrypt truncation matches are rejected. Wrong passwords receive the sa
 No deleted user, password, hash, reset/verification token, or secret is returned.
 
 Deletion is permanent. All applications matching the existing `owner` field for the
-JWT user are removed, then that user is removed. Other users, their applications,
+JWT user are removed, followed by their login activity and then the user. Other users, their applications,
 and unrelated ownerless legacy records remain untouched. Reset/verification state
 disappears with the user. Login and `/me` reject the deleted account. Application
 routes now check that the JWT's user still exists, so a cryptographically unexpired
@@ -612,7 +612,8 @@ old token cannot list/create/read/update/delete applications after deletion.
 
 **Consistency strategy:** the existing development/test setup uses standalone MongoDB,
 so this feature does not require replica sets or introduce transactions. A small
-per-account in-process queue serializes deletion and application operations in the
+per-account in-process queue serializes deletion, application operations and login
+activity recording/queries in the
 current single Node API process. An operation already running finishes before deletion
 and its data is included in cleanup; operations waiting behind successful deletion
 recheck user existence and receive 401. Other accounts are not blocked. Queue entries
@@ -692,3 +693,130 @@ Manual testing (use only disposable local accounts and applications):
     `npm run test:smoke`, `npm run lint`, `npm run build`, and `git diff --check`.
     Backend tests exercise cleanup/final-delete failures, retries and concurrency
     using disposable MongoDB; the smoke test covers real UI/API two-user isolation.
+
+
+### Feature 15: login activity / security history
+
+Successful credential logins now create a `LoginActivity` record. This is a separate
+one-to-many collection with `user` (required ObjectId reference to User), server
+`loggedInAt`, `ipAddress`, and `userAgent`. A compound index on
+`{ user: 1, loggedInAt: -1, _id: -1 }` supports each user's newest records with stable
+ordering when timestamps tie. Registration, `/me` restoration, failed passwords,
+unknown emails, and failed authentication configuration do not create successful-login
+history. The existing successful login response stays `{ user, accessToken }`.
+
+Metadata is deliberately limited:
+
+- IP comes from Express `req.ip`, validated as IPv4/IPv6. The existing default
+  `trust proxy=false` remains; arbitrary `X-Forwarded-For` headers and JSON ipAddress
+  fields are not trusted. Behind an unconfigured proxy this may be the proxy IP,
+  rather than an originating client address. Missing/invalid IP becomes an empty value.
+- User-Agent comes only from the HTTP header, with control characters replaced and
+  a maximum of 512 characters. JSON userAgent/device/identity fields are not used.
+- No password, JWT, cookie, Authorization header, reset/verification token/hash,
+  unrelated headers, GPS, advertising identifier, geolocation or fingerprint is
+  collected in these records. IP/User-Agent remain untrusted metadata, not proof
+  of device identity, a person's identity, or exact physical location.
+
+**Best-effort recording:** after credentials and JWT configuration succeed, the login
+flow awaits an attempt to create the record. Audit errors are caught separately and
+emit only the fixed warning "Login activity could not be recorded." without error
+objects, request metadata or secrets. A temporary audit-write failure still returns
+normal successful login; failed authentication keeps its existing safe failure behavior.
+There is no automatic retry, background queue, failed-login tracking or security alerting.
+The write attempt may add database latency; this is not a claim of guaranteed delivery.
+
+`GET /api/auth/login-activity` requires the existing Bearer JWT and an existing account.
+Ownership comes only from `req.auth.userId`; query/body user IDs and client limits cannot
+select other accounts or increase the bound. It returns:
+
+```json
+{
+  "activities": [
+    {
+      "id": "<activity-id>",
+      "loggedInAt": "<ISO-date-time>",
+      "ipAddress": "<request-IP-or-empty>",
+      "userAgent": "<bounded-reported-agent-or-empty>"
+    }
+  ]
+}
+```
+
+The response is newest first, with `_id` descending as a tie-breaker, and capped by
+`RECENT_LOGIN_ACTIVITY_LIMIT` (currently **20**). Each item has only these four safe
+fields; it does not expose its User ObjectId or user security fields. An account with
+no recorded successful logins receives `{ "activities": [] }`. Invalid/deleted sessions
+receive 401, and unexpected failures use the existing safe generic error contract.
+The cap limits the query/response, not total persisted retention: records are retained
+until account deletion; no TTL purge or pagination is introduced by this feature.
+
+**Account deletion:** Feature 14 now cleans Application.owner records, then LoginActivity.user
+records, then the User. Every filter uses the verified JWT identity. If history cleanup
+fails, the user is retained and success is not reported, but preceding application cleanup
+may already have completed. If final user deletion fails or the verified password changes,
+prior application/history cleanup is not rolled back. Retry remains possible. Recording,
+activity queries, deletion and application operations share the existing per-account queue:
+recording already running finishes before cleanup; recording waiting behind deletion
+rechecks existence and cannot recreate history. A deleted user's old JWT cannot fetch
+history. The same standalone-MongoDB limitations apply: no multi-document rollback and
+coordination only within the current single API process. Multiple writers/workers need
+an appropriate database-level strategy before scaling; no distributed machinery is added.
+
+Profile/Security now includes **Recent Login Activity**, with local date/time, a conservative
+browser/platform label and IP or Unavailable. A small dependency-free helper recognizes
+common Chrome, Firefox, Safari, Edge and Opera/platform hints and falls back to
+Unknown browser/device. Raw user-agent strings are not rendered as markup or as authoritative
+identity. The panel has loading, empty, friendly error/retry and Refresh states, prevents
+duplicate pending requests (including StrictMode effect replay), and does not poll.
+History failure does not disable account/profile/password features. Matching 401s use the
+existing expired-session cleanup.
+
+`authService.getLoginActivity(accessToken)` owns HTTP and safe response/error mapping.
+History lives only in the panel's request/component state, keyed to user/session, never
+localStorage/sessionStorage or AuthContext. Logout/account deletion unmount the panel;
+late results cannot populate a new account. AuthContext remains the existing user/session
+source of truth and routing keeps the Vite basename.
+
+Manual testing (use disposable local accounts/data):
+
+1. Start the configured local MongoDB/API with `npm --prefix server run dev` and Vite
+   with `npm run dev` from the repository root. Open the printed Vite URL under the
+   configured basename, normally `http://localhost:5173/interntrack/`.
+2. Register a disposable User A, then log in. Open Profile and locate Recent Login
+   Activity below Security. A successful login should show its date/time, a browser
+   label (or conservative fallback), and request IP. In local development, a loopback
+   IP is expected. It is not a physical location.
+3. In browser Network tools inspect GET `/api/auth/login-activity`: it must use the
+   current Bearer JWT. Each returned item must contain only id/loggedInAt/ipAddress/
+   userAgent, ordered newest first, with at most 20 items. Do not print/share the JWT.
+4. Sign out, attempt login with an incorrect password, then log in correctly. Open
+   Profile again: only the successful login added an entry. Reloading the page or
+   selecting Refresh must not itself create a login record.
+5. Choose Refresh. With network throttling enabled, confirm the loading message and
+   disabled Refresh button prevent duplicate pending requests. The panel should keep
+   server order. No requests should repeat continuously while idle.
+6. Stop the API while Profile remains open, then choose Refresh. Expect a friendly
+   error and Retry, without diagnostic details or loss of current profile/account
+   controls. Restart the API, choose Retry and confirm history returns.
+7. For an empty state, use a disposable account that predates recording, or clear only
+   that account's LoginActivity documents in the disposable database; choose Refresh
+   and confirm "No login activity available." Automated tests cover the same case.
+8. In a separate private browser session create/log in as User B. Compare Profile
+   activity: A and B must see only their own entries. To test query spoofing in A's
+   local console without printing the JWT, use the following with B's disposable ID:
+   `await fetch('http://localhost:5000/api/auth/login-activity?userId=<B-id>&limit=99999', { headers: { Authorization: 'Bearer ' + sessionStorage.getItem('interntrack_access_token') } }).then(response => response.json())`.
+   It must return only A's bounded history. GET-body spoofing is also tested over real
+   HTTP by the backend suite, since browser fetch prohibits GET bodies.
+9. Confirm browser storage contains no activity list, loggedInAt, IP or user-agent
+   fields. Only the existing session JWT should be stored for authentication. Sign
+   out: the history panel and its private metadata must disappear. Log B into the
+   same tab: A's history must never reappear, even if a prior request finishes late.
+10. Delete disposable A using the Feature 14 confirmation flow. In the disposable
+    database confirm A's history and applications are gone while B's remain. A's old
+    JWT must receive 401 from the activity endpoint (use the in-memory old-JWT method
+    documented in Feature 14). Do not run destructive checks against real user data.
+11. Run `npm test`, `npm run test:integration`, `npm --prefix server test`,
+    `npm run test:smoke`, `npm run lint`, `npm run build`, and `git diff --check`.
+    Automated suites exercise the 20-record cap, safe metadata, audit-write failure,
+    deleted-account races, UI privacy and prior feature regressions with disposable data.

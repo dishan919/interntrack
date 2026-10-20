@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { validateProfile } from '../utils/profile'
 import EmailVerification from '../components/profile/EmailVerification'
 import DeleteAccount from '../components/profile/DeleteAccount'
+import RecentLoginActivity from '../components/profile/RecentLoginActivity'
 import ChangePassword from '../components/profile/ChangePassword'
 import '../styles/profile.css'
 
@@ -76,6 +77,7 @@ export default function Profile() {
     </section>
     <p className="profile-note">You can update your name and email, or change your password in Security.</p>
     <ChangePassword />
+    <RecentLoginActivity />
     </fieldset>
     <DeleteAccount onPendingChange={setDeletionPending} />
   </>

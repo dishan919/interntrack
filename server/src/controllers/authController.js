@@ -1,3 +1,4 @@
+import { recordSuccessfulLogin } from '../services/loginActivity.js'
 import { createVerification, deliverEmailVerification, safeUser } from '../services/emailVerification.js'
 import { passwordError } from '../services/passwordPolicy.js'
 import bcrypt from 'bcryptjs'
@@ -55,6 +56,7 @@ export async function login(req, res) {
   const secret = getJwtSecret()
   if (!secret) return res.status(503).json({ message: 'Authentication is not configured' })
   const accessToken = createAccessToken(user.id, secret)
+  await recordSuccessfulLogin(user.id, req)
   return res.status(200).json({ user: safeUser(user), accessToken })
 }
 

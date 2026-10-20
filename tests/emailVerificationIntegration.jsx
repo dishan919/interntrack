@@ -35,6 +35,7 @@ export default async function verify() {
     window.sessionStorage.clear()
     const localBefore = JSON.stringify(window.localStorage)
     globalThis.fetch = async (url, options = {}) => {
+      if (url.endsWith('/auth/login-activity')) return new Response('{"activities":[]}')
       if (url.endsWith('/auth/me')) {
         assert.equal(options.headers.Authorization, 'Bearer verification-session')
         if (options.method === 'PATCH') {

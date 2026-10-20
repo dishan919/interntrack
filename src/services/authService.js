@@ -219,3 +219,23 @@ export async function deleteAccount(accessToken, currentPassword) {
   if (data?.message !== 'Account deleted successfully.') throw new Error('The server returned an invalid response. Please try again.')
   return { message: 'Account deleted successfully.' }
 }
+
+export async function getLoginActivity(accessToken) {
+  let response
+  try { response = await fetch(`${API_URL}/auth/login-activity`, { headers: bearerHeaders(accessToken) }) }
+  catch { throw new Error('Unable to load login activity. Check your connection and try again.') }
+  if (response.status === 401) {
+    invalidateSession(accessToken)
+    throw new Error('Your session has expired. Please sign in again.')
+  }
+  if (!response.ok) throw new Error('Unable to load login activity. Please try again.')
+  let data
+  try { data = await response.json() } catch { throw new Error('Unable to load login activity. Please try again.') }
+  if (!Array.isArray(data?.activities) || data.activities.some(activity => !activity
+    || typeof activity.id !== 'string' || !activity.id
+    || typeof activity.loggedInAt !== 'string' || !Number.isFinite(Date.parse(activity.loggedInAt))
+    || typeof activity.ipAddress !== 'string' || typeof activity.userAgent !== 'string')) {
+    throw new Error('Unable to load login activity. Please try again.')
+  }
+  return { activities: data.activities.map(({ id, loggedInAt, ipAddress, userAgent }) => ({ id, loggedInAt, ipAddress, userAgent })) }
+}

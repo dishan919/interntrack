@@ -1,3 +1,4 @@
+import LoginActivity from '../models/LoginActivity.js'
 import bcrypt from 'bcryptjs'
 import User from '../models/User.js'
 import Application from '../models/Application.js'
@@ -21,6 +22,7 @@ export async function deleteAccount(req, res) {
     // Cleanup first: never deliberately remove the user after failed cleanup.
     // The shared account queue prevents concurrent application writes here.
     await Application.deleteMany({ owner: req.auth.userId })
+    await LoginActivity.deleteMany({ user: req.auth.userId })
     // A concurrent password change/reset must not authorize deletion with an old hash.
     const result = await User.deleteOne({ _id: req.auth.userId, password: user.password })
     if (result.deletedCount !== 1) return res.status(409).json({ message: 'Account changed. Please sign in again and retry.' })

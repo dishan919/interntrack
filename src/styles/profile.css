@@ -26,3 +26,11 @@
 .profile-danger .button.danger:disabled { opacity: 0.6; cursor: wait; }
 
 .profile-controls { border: 0; margin: 0; padding: 0; min-width: 0; }
+
+.profile-login-activity { margin-top: 24px; }
+.login-activity-content { padding: 0 28px 24px; }
+.login-activity-list { margin: 16px 0 0; padding: 0; list-style: none; }
+.login-activity-list li { display: grid; gap: 6px; padding: 16px 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.login-activity-list time { font-weight: 600; }
+.login-activity-list span { font-size: 13px; color: var(--muted); }
+@media (max-width: 640px) { .login-activity-content { padding: 0 20px 20px; } }
