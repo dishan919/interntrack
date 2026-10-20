@@ -5,6 +5,7 @@ import { JSDOM } from 'jsdom'
 import { createServer, resolveConfig } from 'vite'
 import User from '../server/src/models/User.js'
 import app from '../server/src/app.js'
+import { setTestVerificationCapture } from '../server/src/services/emailVerification.js'
 import { setTestResetCapture } from '../server/src/services/passwordResetDelivery.js'
 import { connectDatabase, disconnectDatabase } from '../server/src/config/database.js'
 import { startTestDatabase } from '../server/tests/helpers/database.js'
@@ -12,6 +13,8 @@ import { startTestDatabase } from '../server/tests/helpers/database.js'
 const originalFetch = globalThis.fetch
 const originalNodeEnv = process.env.NODE_ENV
 process.env.NODE_ENV = 'test'
+let verificationDelivery
+setTestVerificationCapture(details => { verificationDelivery = details })
 let resetDelivery
 setTestResetCapture(details => { resetDelivery = details })
 const originalSecret = process.env.JWT_SECRET
@@ -128,6 +131,18 @@ try {
   assert.match(container.textContent, /Smoke User/)
   assert.match(container.textContent, /smoke@example.com/)
   const profileToken = window.sessionStorage.getItem('interntrack_access_token')
+  assert.match(container.textContent, /Not verified/)
+  await click(button('Resend Verification'))
+  await waitFor(() => container.textContent.includes('Verification instructions have been requested.'))
+  assert.ok(verificationDelivery?.token)
+  window.history.replaceState({}, '', `${base}verify-email?token=${verificationDelivery.token}`)
+  await refresh()
+  await waitFor(() => container.textContent.includes('Email verified successfully.'))
+  assert.equal(window.location.search, '')
+  await click(container.querySelector(`a[href="${base}profile"]`))
+  await waitFor(() => container.textContent.includes('Status: Verified'))
+  assert.equal(button('Resend Verification'), undefined)
+
   await click(button('Edit Profile'))
   await input('name', 'Updated Smoke User')
   await input('email', 'updated.smoke@example.com')
@@ -135,6 +150,10 @@ try {
   await waitFor(() => container.textContent.includes('Profile updated successfully.'))
   assert.equal(window.sessionStorage.getItem('interntrack_access_token'), profileToken)
   assert.equal(container.querySelector('[aria-label="Student Workspace"]').textContent, 'U')
+  assert.match(container.textContent, /Not verified/)
+  assert.ok(button('Resend Verification'))
+  assert.equal(verificationDelivery.email, 'updated.smoke@example.com')
+
   await refresh()
   assert.equal(container.querySelector('h1').textContent, 'Profile')
   assert.match(container.textContent, /updated.smoke@example.com/)
@@ -186,12 +205,37 @@ try {
   await act(async () => container.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
   await waitFor(() => window.location.pathname === base && container.textContent.includes('Track your applications'))
   console.log('PASS: real API forgot/reset UI, test-only delivery, removed query token, explicit new-password login')
+  await click(container.querySelector('[aria-label="Student Workspace"]'))
+  await click(container.querySelector(`a[href="${base}profile"]`))
+  assert.match(container.textContent, /Not verified/)
+  await click(button('Resend Verification'))
+  await waitFor(() => container.textContent.includes('Verification instructions have been requested.'))
+  const firstVerification = verificationDelivery.token
+  await click(button('Resend Verification'))
+  await waitFor(() => !container.textContent.includes('Requesting verification...'))
+  assert.notEqual(firstVerification, verificationDelivery.token)
+  const rejected = await originalFetch(process.env.VITE_API_URL + '/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: firstVerification }) })
+  assert.equal(rejected.status, 400)
+  const verificationSession = window.sessionStorage.getItem('interntrack_access_token')
+  window.history.replaceState({}, '', `${base}verify-email?token=${verificationDelivery.token}`)
+  await refresh()
+  await waitFor(() => container.textContent.includes('Email verified successfully.'))
+  await click(container.querySelector(`a[href="${base}profile"]`))
+  await waitFor(() => container.textContent.includes('Status: Verified'))
+  await refresh()
+  assert.match(container.textContent, /Status: Verified/)
+  assert.equal(window.sessionStorage.getItem('interntrack_access_token'), verificationSession)
+  assert.equal(button('Resend Verification'), undefined)
+  assert.ok(!JSON.stringify(window.sessionStorage).includes(verificationDelivery.token))
+  console.log('PASS: real API verification/resend, one-time replacement, live AuthContext refresh/restoration and verified email-change invalidation')
+
   console.log('PASS: real API session restoration, UI logout/login to dashboard, and invalid-token cleanup')
   console.log('PASS: real React DOM create/refresh/edit/refresh/Kanban/refresh/delete/refresh through Express and disposable MongoDB')
   await act(async () => root.unmount())
   root = null
 } finally {
   console.log('Smoke: cleaning up')
+  setTestVerificationCapture(undefined)
   setTestResetCapture(undefined)
   if (originalNodeEnv === undefined) delete process.env.NODE_ENV
   else process.env.NODE_ENV = originalNodeEnv

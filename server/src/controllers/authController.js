@@ -1,3 +1,4 @@
+import { createVerification, deliverEmailVerification, safeUser } from '../services/emailVerification.js'
 import { passwordError } from '../services/passwordPolicy.js'
 import bcrypt from 'bcryptjs'
 import { createAccessToken, getJwtSecret } from '../config/jwt.js'
@@ -22,8 +23,10 @@ export async function register(req, res) {
     // Wait for the unique index before accepting even the first registration.
     await User.init()
     if (await User.exists({ email })) return duplicate()
-    const user = await User.create({ name: req.body.name.trim(), email, password: req.body.password })
-    return res.status(201).json({ user: { id: user.id, name: user.name, email: user.email } })
+    const verification = createVerification()
+    const user = await User.create({ name: req.body.name.trim(), email, password: req.body.password, ...verification.fields })
+    await deliverEmailVerification({ email: user.email, token: verification.token, expiresAt: verification.expiresAt })
+    return res.status(201).json({ user: safeUser(user) })
   } catch (failure) {
     // The database index also handles concurrent requests that pass the lookup.
     if (failure.code === 11000) return duplicate()
@@ -52,13 +55,13 @@ export async function login(req, res) {
   const secret = getJwtSecret()
   if (!secret) return res.status(503).json({ message: 'Authentication is not configured' })
   const accessToken = createAccessToken(user.id, secret)
-  return res.status(200).json({ user: { id: user.id, name: user.name, email: user.email }, accessToken })
+  return res.status(200).json({ user: safeUser(user), accessToken })
 }
 
 export async function me(req, res) {
   const user = await User.findById(req.auth.userId)
   if (!user) return res.status(401).json({ message: 'Unauthorized' })
-  return res.status(200).json({ user: { id: user.id, name: user.name, email: user.email } })
+  return res.status(200).json({ user: safeUser(user) })
 }
 
 export async function updateMe(req, res) {
@@ -77,10 +80,25 @@ export async function updateMe(req, res) {
   if (!Object.keys(updates).length) return res.status(400).json({ message: 'Provide a name or email to update' })
   try {
     await User.init()
-    // Explicit $set allowlist and verified identity; never spread client data.
-    const user = await User.findByIdAndUpdate(req.auth.userId, { $set: updates }, { returnDocument: 'after', runValidators: true })
-    if (!user) return res.status(401).json({ message: 'Unauthorized' })
-    return res.status(200).json({ user: { id: user.id, name: user.name, email: user.email } })
+    if (!Object.hasOwn(updates, 'email')) {
+      const user = await User.findByIdAndUpdate(req.auth.userId, { $set: updates }, { returnDocument: 'after', runValidators: true })
+      if (!user) return res.status(401).json({ message: 'Unauthorized' })
+      return res.json({ user: safeUser(user) })
+    }
+    // Compare the current email in the atomic write, so concurrent profile changes
+    // cannot retain another address's verified status or token.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const current = await User.findById(req.auth.userId)
+      if (!current) return res.status(401).json({ message: 'Unauthorized' })
+      const verification = updates.email !== current.email ? createVerification() : null
+      const user = await User.findOneAndUpdate({ _id: current._id, email: current.email }, {
+        $set: { ...updates, ...verification?.fields },
+      }, { returnDocument: 'after', runValidators: true })
+      if (!user) continue
+      if (verification) await deliverEmailVerification({ email: user.email, token: verification.token, expiresAt: verification.expiresAt })
+      return res.json({ user: safeUser(user) })
+    }
+    return res.status(409).json({ message: 'Profile changed. Please refresh and try again.' })
   } catch (failure) {
     if (failure.code === 11000) return res.status(409).json({ message: 'An account with this email already exists' })
     throw failure

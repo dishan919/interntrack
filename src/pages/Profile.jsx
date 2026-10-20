@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { validateProfile } from '../utils/profile'
+import EmailVerification from '../components/profile/EmailVerification'
 import ChangePassword from '../components/profile/ChangePassword'
 import '../styles/profile.css'
 
@@ -64,6 +65,7 @@ export default function Profile() {
       </dl>
       <div className="profile-actions"><button type="button" className="button secondary" onClick={edit}>Edit Profile</button></div>
       </>}
+      <EmailVerification key={user.email} />
       <div className="setting-row">
         <div><h3>Your session</h3><p>Sign out when you have finished using your account.</p></div>
         <button type="button" className="button secondary" onClick={logout}>Sign out</button>

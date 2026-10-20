@@ -461,7 +461,8 @@ Manual testing (use a disposable local database/account):
 2. Register a disposable account, then open Login and choose Forgot password.
    Submit an empty email and an invalid email; validation should prevent requests.
 3. Attach your local JavaScript debugger to the API. Set a breakpoint inside
-   `deliverPasswordReset(details)` in `server/src/services/passwordResetDelivery.js`.
+   `deliver(details)` in `server/src/services/testTokenDelivery.js` (the shared
+   delivery implementation used by `passwordResetDelivery.js`).
    Submit the registered email with uppercase letters and surrounding spaces.
    At the breakpoint inspect `details.token` in debugger memory, then resume.
    Do not paste the token into logs, source control, or shared screenshots.
@@ -483,3 +484,103 @@ Manual testing (use a disposable local database/account):
 9. Run `npm test`, `npm run test:integration`, `npm --prefix server test`,
    `npm run test:smoke`, `npm run lint`, `npm run build`, and `git diff --check`.
    Smoke tests run against disposable MongoDB and exercise the full real reset UI/API.
+
+
+### Feature 13: email verification foundation
+
+New accounts start with `emailVerified: false`. Registration, login, current-user,
+and profile-update responses all expose the safe user contract:
+`{ id, name, email, emailVerified }`. Unverified users may still log in and use
+all existing workspace features. No verification enforcement is introduced here.
+
+**Existing records:** missing verification state is treated as false via the model
+and safe user serializer. No bulk migration, automatic verification, destructive
+rewrite, or login restriction is applied. Existing accounts can request a token
+from Profile; reading/login does not write a migration into the database.
+
+- Registration creates a 256-bit verification token with Node `crypto.randomBytes(32)`.
+  Only its SHA-256 hash (`emailVerificationTokenHash`) and date
+  (`emailVerificationExpiresAt`) are persisted. Expiry is centralized in
+  `VERIFICATION_TTL_MS`, currently **24 hours**.
+- `POST /api/auth/verify-email` is public and accepts only
+  `{ "token": "<temporary-verification-token>" }`. An atomic conditional write
+  matches an unverified account with the hash and future expiry, marks it verified,
+  and clears both token fields. Success: `{ "message": "Email verified successfully." }`.
+  Invalid/expired/replaced/used links receive the same safe HTTP 400 message:
+  "Email verification link is invalid or has expired."
+- `POST /api/auth/resend-verification` requires the existing Bearer JWT and an empty
+  JSON body `{}`. Identity comes only from `req.auth.userId`; body fields (including
+  userId) are rejected. Unverified accounts receive a fresh hash and 24-hour expiry,
+  invalidating the previous token. Success says "Verification instructions have been
+  requested." Already verified accounts receive "Your email is already verified."
+  without creating or delivering a token. Deleted/invalid sessions receive 401.
+- Profile PATCH continues to allowlist name/email. Direct verification fields cannot
+  be written by clients (unsupported-only requests receive 400; extra fields beside
+  valid profile updates are ignored, as in earlier features).
+- A changed normalized email atomically becomes unverified and receives a replacement
+  verification hash/expiry delivered for the new email. Name-only edits and the same
+  normalized email preserve status and token. Duplicate-email errors leave the account
+  untouched. Conditional email matching handles concurrent profile/verification edits.
+- Hidden token fields are excluded from normal model queries and JSON serialization.
+  Public responses never contain the raw token, hash, expiry, password hash, or secrets.
+- Profile displays Verified / Not verified and offers Resend Verification when needed,
+  with pending/duplicate-submit protection and safe feedback.
+- Public React Router route `/verify-email?token=...` uses the existing Vite basename.
+  It shows missing/invalid/verifying/success states, consumes a token automatically,
+  and avoids duplicate effect requests under React StrictMode. It clears the query
+  on success and links to Profile or Login. No token enters browser storage or AuthContext.
+- AuthProvider's `refreshCurrentUser()` refetches the safe `/me` endpoint after verification
+  in an active session; AuthContext remains the user-state source of truth. Late refresh
+  results cannot resurrect a logged-out or replaced session. A failed refresh offers a
+  safe retry without a browser reload. Session restoration always obtains status from `/me`.
+- Production email is intentionally **not implemented**. The delivery seam is a no-op
+  outside tests; no email is actually sent. Feature 12 and verification share
+  `createTokenDelivery()`. Under `NODE_ENV=test`, automated tests call
+  `setTestVerificationCapture(callback)` to inspect `{ email, token, expiresAt }` in memory.
+  Setter and delivery both enforce test mode. There is no capture HTTP endpoint or normal
+  token logging, and no SMTP/Gmail/SendGrid/SES integration.
+
+Manual testing for Feature 13 (use a disposable local account/database):
+
+1. Configure the existing server `.env` and frontend `.env`. From `server`, run
+   `node --inspect --env-file-if-exists=.env src/server.js`. From the project root,
+   run `npm run dev`. Open the Vite URL under its configured basename (normally
+   `http://localhost:5173/interntrack/`).
+2. Attach a local JavaScript debugger to the Node process. In
+   `server/src/services/testTokenDelivery.js`, set a breakpoint in `deliver(details)`.
+   The callback is a no-op during normal development; debugger inspection allows
+   local manual testing without adding token logging or a public capture endpoint.
+3. Register a new disposable account. At the verification delivery breakpoint,
+   inspect `details.email`, `details.token`, and `details.expiresAt`, then resume.
+   Keep the token only temporarily for constructing the local link. Registration
+   must return emailVerified=false without any token/hash/expiry in the response.
+4. Log in before verifying. All existing workspace features must remain accessible.
+   Open Profile: status is Not verified and Resend Verification is available.
+5. Click Resend Verification; inspect the new token in the debugger and resume.
+   Verify the pending button prevents repeat clicks. The success message contains
+   no token. Open the earlier registration link under
+   `<Vite base URL>verify-email?token=<earlier token>`: it must fail safely.
+6. Open `<Vite base URL>verify-email?token=<latest token>` in the same authenticated
+   browser. Observe verifying then success; the query is removed. Choose Back to
+   profile: status is Verified and resend is absent, without a whole-browser reload.
+   Reload Profile to confirm `/me` restores Verified.
+7. Reopen the consumed link: it must return the generic invalid/expired message.
+   Open `/verify-email` under the basename without a token: it must show the safe
+   missing-token message without making a verification request.
+8. Change only the profile name: Verified remains. Submit the same email with
+   different case/outer spaces: Verified remains and no new delivery occurs.
+   Change to a different email: Not verified returns, a new delivery targets the
+   new address, and the old token cannot verify it. Verify the newest token again.
+9. For expiry, request another token for an unverified account and wait 24 hours,
+   or use disposable MongoDB tests below to exercise expiry without waiting.
+   The expired token must receive the same generic invalid/expired response.
+10. Inspect browser requests/storage: verification sends only token, resend sends
+    `{}` with the current Bearer JWT, and token values never enter localStorage,
+    sessionStorage, or AuthContext. PATCH `{ "emailVerified": true }` must fail;
+    adding that field to a valid name edit must not verify the account.
+11. To test safe errors, stop the local API and try resend on an unverified Profile;
+    show a connection message without diagnostics. Restart it and retry. Existing
+    login/register/profile/password-change/password-reset flows should still work.
+12. Run `npm test`, `npm run test:integration`, `npm --prefix server test`,
+    `npm run test:smoke`, `npm run lint`, `npm run build`, and `git diff --check`.
+    Backend/smoke suites use disposable MongoDB and test-only in-memory delivery.

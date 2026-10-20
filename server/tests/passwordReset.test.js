@@ -60,9 +60,9 @@ test('generic known/unknown response, normalized email, random hashed temporary 
   assert.equal(delivery, undefined)
   assert.equal(await User.countDocuments(), 1)
   const login = await (await post('login', account)).json()
-  assert.deepEqual(Object.keys(login.user).sort(), ['email', 'id', 'name'])
+  assert.deepEqual(Object.keys(login.user).sort(), ['email', 'emailVerified', 'id', 'name'])
   const me = await fetch(base + 'me', { headers: { Authorization: `Bearer ${login.accessToken}` } })
-  assert.deepEqual(Object.keys((await me.json()).user).sort(), ['email', 'id', 'name'])
+  assert.deepEqual(Object.keys((await me.json()).user).sort(), ['email', 'emailVerified', 'id', 'name'])
 })
 test('valid reset hashes once, clears token, requires explicit login and rejects reuse', async () => {
   const token = await request()

@@ -56,5 +56,15 @@ export default function AuthProvider({ children }) {
     return result.user
   }
 
-  return <AuthContext.Provider value={{ ...session, isAuthenticated: Boolean(session.user && session.accessToken), login, logout, updateProfile }}>{children}</AuthContext.Provider>
+  const refreshCurrentUser = useCallback(async () => {
+    const attempt = version.current
+    const token = session.accessToken
+    if (!token) return
+    const result = await service.getCurrentUser(token)
+    if (attempt !== version.current) return
+    setSession(current => current.accessToken === token ? { ...current, user: result.user } : current)
+    return result.user
+  }, [session.accessToken])
+
+  return <AuthContext.Provider value={{ ...session, isAuthenticated: Boolean(session.user && session.accessToken), login, logout, updateProfile, refreshCurrentUser }}>{children}</AuthContext.Provider>
 }

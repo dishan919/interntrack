@@ -170,7 +170,7 @@ for (const updates of [{ name: '  New Name  ' }, { email: '  NEW@EXAMPLE.COM  ' 
     const beforeUser = await User.collection.findOne({ _id: user._id })
     const response = await patchProfile(token, updates)
     assert.equal(response.status, 200)
-    const expected = { user: { id: user.id, name: updates.name?.trim() || valid.name, email: updates.email?.trim().toLowerCase() || valid.email } }
+    const expected = { user: { id: user.id, name: updates.name?.trim() || valid.name, email: updates.email?.trim().toLowerCase() || valid.email, emailVerified: false } }
     assert.deepEqual(await response.json(), expected)
     assert.deepEqual(await (await currentUser(`Bearer ${token}`)).json(), expected)
     const afterUser = await User.collection.findOne({ _id: user._id })
@@ -186,7 +186,7 @@ test('profile PATCH cannot target another user or change sensitive fields', asyn
   const token = jwt.sign({ sub: a.id }, testSecret, { expiresIn: '1h' })
   const response = await patchProfile(token, { name: 'Only A', userId: b.id, id: b.id, _id: b.id, owner: b.id, role: 'admin', password: 'ChangedPassword123', passwordHash: 'forged', accessToken: 'forged', $set: { email: b.email } })
   assert.equal(response.status, 200)
-  assert.deepEqual(await response.json(), { user: { id: a.id, name: 'Only A', email: a.email } })
+  assert.deepEqual(await response.json(), { user: { id: a.id, name: 'Only A', email: a.email, emailVerified: false } })
   const afterA = await User.collection.findOne({ _id: a._id })
   assert.equal(afterA.password, beforeA.password)
   for (const key of ['role', 'owner', 'passwordHash', 'accessToken', 'userId']) assert.equal(afterA[key], undefined)
@@ -399,7 +399,7 @@ test('registration returns 201 with only safe user fields and normalizes name/em
   const body = await response.json()
   assert.deepEqual(Object.keys(body), ['user'])
   assert.match(body.user.id, /^[a-f0-9]{24}$/)
-  assert.deepEqual(body, { user: { id: body.user.id, name: 'Dishan', email: valid.email } })
+  assert.deepEqual(body, { user: { id: body.user.id, name: 'Dishan', email: valid.email, emailVerified: false } })
   const stored = await User.collection.findOne({ email: valid.email })
   assert.equal(stored.role, undefined)
   assert.equal(stored.userId, undefined)

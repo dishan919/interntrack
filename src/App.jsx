@@ -11,10 +11,12 @@ import Statistics from './pages/Statistics'
 import Settings from './pages/Settings'
 import Register from './pages/Register'
 import Login from './pages/Login'
+import VerifyEmail from './pages/VerifyEmail'
 import Profile from './pages/Profile'
 import PasswordReset from './pages/PasswordReset'
 export default function App() {
   return <BrowserRouter basename={import.meta.env.BASE_URL}><AuthProvider><Routes>
+    <Route path="verify-email" element={<VerifyEmail />} />
     <Route path="forgot-password" element={<PasswordReset key="forgot" />} />
     <Route path="reset-password" element={<PasswordReset key="reset" reset />} />
     <Route path="login" element={<Login />} />

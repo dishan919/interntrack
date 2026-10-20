@@ -1,3 +1,4 @@
+import { verifyEmail, resendVerification } from '../controllers/emailVerificationController.js'
 import { forgotPassword, resetPassword } from '../controllers/passwordResetController.js'
 import { Router } from 'express'
 import { login, me, register, updateMe, changePassword } from '../controllers/authController.js'
@@ -5,6 +6,8 @@ import authenticate from '../middleware/authenticate.js'
 
 const router = Router()
 
+router.post('/verify-email', verifyEmail)
+router.post('/resend-verification', authenticate, resendVerification)
 router.post('/register', register)
 router.post('/login', login)
 router.post('/forgot-password', forgotPassword)

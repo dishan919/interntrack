@@ -5,6 +5,9 @@ export const MIN_PASSWORD_LENGTH = 8
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const userSchema = new mongoose.Schema({
+  emailVerified: { type: Boolean, default: false },
+  emailVerificationTokenHash: { type: String, select: false },
+  emailVerificationExpiresAt: { type: Date, select: false },
   passwordResetTokenHash: { type: String, select: false },
   passwordResetExpiresAt: { type: Date, select: false },
   name: { type: String, required: true, trim: true, maxlength: 120 },
@@ -24,6 +27,8 @@ const userSchema = new mongoose.Schema({
     transform(_doc, result) {
       result.id = result._id.toString()
       delete result._id
+      delete result.emailVerificationTokenHash
+      delete result.emailVerificationExpiresAt
       delete result.passwordResetTokenHash
       delete result.passwordResetExpiresAt
       delete result.password

@@ -1,6 +1,9 @@
 import { bearerHeaders, invalidateSession } from './authSession.js'
 
 const API_URL = (import.meta.env?.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '')
+function verificationState(user) {
+  return typeof user.emailVerified === 'boolean' ? { emailVerified: user.emailVerified } : {}
+}
 const safeValidationMessages = new Set([
   'Name is required', 'Name must be at most 120 characters',
   'A valid email address is required', 'Password must be at least 8 characters',
@@ -32,7 +35,7 @@ export async function register({ name, email, password }) {
   }
   // Retain only the safe registration contract, never token or password fields.
   const { id, name: userName, email: userEmail } = data.user
-  return { user: { id, name: userName, email: userEmail } }
+  return { user: { id, name: userName, email: userEmail, ...verificationState(data.user) } }
 }
 
 export async function login({ email, password }) {
@@ -59,7 +62,7 @@ export async function login({ email, password }) {
   }
   const { id, name, email: userEmail } = data.user
   // Return the existing API contract in memory only; no storage or logging.
-  return { user: { id, name, email: userEmail }, accessToken: data.accessToken }
+  return { user: { id, name, email: userEmail, ...verificationState(data.user) }, accessToken: data.accessToken }
 }
 
 export async function getCurrentUser(accessToken) {
@@ -73,7 +76,7 @@ export async function getCurrentUser(accessToken) {
     throw new Error('The server returned an invalid response. Please sign in again.')
   }
   const { id, name, email } = data.user
-  return { user: { id, name, email } }
+  return { user: { id, name, email, ...verificationState(data.user) } }
 }
 
 export async function updateProfile(accessToken, updates) {
@@ -97,7 +100,7 @@ export async function updateProfile(accessToken, updates) {
   try { data = await response.json() } catch { throw new Error('The server returned an invalid response. Please try again.') }
   if (!data?.user || !['id', 'name', 'email'].every(key => typeof data.user[key] === 'string' && data.user[key].trim())) throw new Error('The server returned an invalid response. Please try again.')
   const { id, name, email } = data.user
-  return { user: { id, name, email } }
+  return { user: { id, name, email, ...verificationState(data.user) } }
 }
 
 export async function changePassword(accessToken, { currentPassword, newPassword }) {
@@ -158,4 +161,34 @@ export function requestPasswordReset(email) {
 }
 export function resetPassword(token, newPassword) {
   return resetRequest('reset-password', { token, newPassword }, RESET_SUCCESS_MESSAGE)
+}
+
+export const VERIFIED_MESSAGE = 'Email verified successfully.'
+export const INVALID_VERIFICATION_MESSAGE = 'Email verification link is invalid or has expired.'
+export const RESENT_MESSAGE = 'Verification instructions have been requested.'
+export const ALREADY_VERIFIED_MESSAGE = 'Your email is already verified.'
+async function verificationRequest(path, body, accessToken) {
+  let response
+  try {
+    response = await fetch(`${API_URL}/auth/${path}`, {
+      method: 'POST', headers: { ...bearerHeaders(accessToken ?? null), 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+  } catch { throw new Error('Unable to reach the server. Check your connection and try again.') }
+  if (accessToken && response.status === 401) {
+    invalidateSession(accessToken)
+    throw new Error('Your session has expired. Please sign in again.')
+  }
+  if (!response.ok) throw new Error(path === 'verify-email' && response.status === 400
+    ? INVALID_VERIFICATION_MESSAGE : 'Unable to process verification. Please try again.')
+  let data
+  try { data = await response.json() } catch { throw new Error('The server returned an invalid response. Please try again.') }
+  const messages = path === 'verify-email' ? [VERIFIED_MESSAGE] : [RESENT_MESSAGE, ALREADY_VERIFIED_MESSAGE]
+  if (!messages.includes(data?.message)) throw new Error('The server returned an invalid response. Please try again.')
+  return { message: data.message }
+}
+export function verifyEmail(token) {
+  return verificationRequest('verify-email', { token })
+}
+export function resendEmailVerification(accessToken) {
+  return verificationRequest('resend-verification', {}, accessToken)
 }
