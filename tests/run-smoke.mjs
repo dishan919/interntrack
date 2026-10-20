@@ -5,10 +5,15 @@ import { JSDOM } from 'jsdom'
 import { createServer, resolveConfig } from 'vite'
 import User from '../server/src/models/User.js'
 import app from '../server/src/app.js'
+import { setTestResetCapture } from '../server/src/services/passwordResetDelivery.js'
 import { connectDatabase, disconnectDatabase } from '../server/src/config/database.js'
 import { startTestDatabase } from '../server/tests/helpers/database.js'
 
 const originalFetch = globalThis.fetch
+const originalNodeEnv = process.env.NODE_ENV
+process.env.NODE_ENV = 'test'
+let resetDelivery
+setTestResetCapture(details => { resetDelivery = details })
 const originalSecret = process.env.JWT_SECRET
 process.env.JWT_SECRET = "feature04-ui-smoke-test-secret"
 const { base } = await resolveConfig({}, 'serve')
@@ -162,12 +167,34 @@ try {
   await refresh()
   await waitFor(() => window.location.pathname === `${base}login`)
   assert.equal(window.sessionStorage.getItem('interntrack_access_token'), null)
+  await click(container.querySelector(`a[href="${base}forgot-password"]`))
+  await input('email', 'updated.smoke@example.com')
+  await act(async () => container.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
+  await waitFor(() => container.textContent.includes('If an account exists'))
+  assert.ok(resetDelivery?.token)
+  window.history.replaceState({}, '', `${base}reset-password?token=${resetDelivery.token}`)
+  await refresh()
+  await input('newPassword', 'ResetSmokePassword789')
+  await input('confirmNewPassword', 'ResetSmokePassword789')
+  await act(async () => container.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
+  await waitFor(() => container.textContent.includes('Password reset successfully'))
+  assert.equal(window.location.search, '')
+  assert.equal(window.sessionStorage.getItem('interntrack_access_token'), null)
+  await click(container.querySelector(`a[href="${base}login"]`))
+  await input('email', 'updated.smoke@example.com')
+  await input('password', 'ResetSmokePassword789')
+  await act(async () => container.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
+  await waitFor(() => window.location.pathname === base && container.textContent.includes('Track your applications'))
+  console.log('PASS: real API forgot/reset UI, test-only delivery, removed query token, explicit new-password login')
   console.log('PASS: real API session restoration, UI logout/login to dashboard, and invalid-token cleanup')
   console.log('PASS: real React DOM create/refresh/edit/refresh/Kanban/refresh/delete/refresh through Express and disposable MongoDB')
   await act(async () => root.unmount())
   root = null
 } finally {
   console.log('Smoke: cleaning up')
+  setTestResetCapture(undefined)
+  if (originalNodeEnv === undefined) delete process.env.NODE_ENV
+  else process.env.NODE_ENV = originalNodeEnv
   globalThis.fetch = originalFetch
   if (originalSecret === undefined) delete process.env.JWT_SECRET
   else process.env.JWT_SECRET = originalSecret

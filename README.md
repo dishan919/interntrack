@@ -420,3 +420,66 @@ Use the port printed by Vite if it differs from 5173.
 7. Visit `http://localhost:5173/interntrack/applications` after logout. Confirm redirect to login. To check invalid-session cleanup, set `interntrack_access_token` in browser sessionStorage to fictional text such as `invalid-test-token`, then refresh a private route; it must clear the token and stay unauthenticated.
 
 Validation commands: `npm test`, `npm run test:integration`, `npm --prefix server test`, `npm run test:smoke`, `npm run lint`, `npm run build`. Auth tests cover token-only storage, verified restoration, safe loading, logout, account changes and late responses, guarded routes, basename links, 401 cleanup, and production Bearer headers. Real API tests use disposable MongoDB only.
+
+
+### Feature 12: forgot password and secure reset
+
+- `POST /api/auth/forgot-password` accepts `{ "email": "user@example.com" }`.
+  Valid known and unknown addresses receive HTTP 200 with the identical message:
+  "If an account exists for that email, password reset instructions have been sent."
+  Email is trimmed/lowercased. Invalid email syntax receives a safe 400.
+- `POST /api/auth/reset-password` accepts only `{ "token": "<temporary-token>", "newPassword": "<new-password>" }`.
+  Success returns a message and requires explicit login. Invalid, expired, replaced,
+  or consumed tokens return a generic 400. User IDs and extra fields are rejected.
+- Tokens use `crypto.randomBytes(32)` (256 bits), encoded as 64 hex characters.
+  Only SHA-256 hashes and expiry dates are persisted; expiry is centralized in
+  `RESET_TTL_MS` (15 minutes). A new request replaces the previous token.
+  Reset uses the existing bcrypt save hook and a conditional atomic write so
+  concurrent requests cannot consume the same token twice. Success clears both fields.
+- Reset fields have `select: false` and are removed by User JSON serialization.
+  Public auth responses allowlist user fields. Tokens never enter browser storage,
+  AuthContext, or normal logs. The reset URL query is removed on success.
+- Public React Router routes `/forgot-password` and `/reset-password?token=...`
+  honor the existing Vite basename. Login includes a Forgot password link.
+- Password policy remains at least 8 characters, nonblank, at most 72 UTF-8 bytes.
+  Backend registration/change/reset share validation; the reset UI reuses change validation.
+- Production email delivery is intentionally unimplemented. The delivery service is
+  a no-op outside tests; the generic response does not mean an email was actually sent.
+  This is a foundation, not a working production email recovery service.
+  No SMTP/provider integration is included.
+- Automated tests set `NODE_ENV=test` and call `setTestResetCapture(callback)` from
+  `server/src/services/passwordResetDelivery.js`. The callback receives `{ email, token,
+  expiresAt }` in memory. Configuration throws outside test mode; delivery checks test
+  mode again at invocation. There is no HTTP token-capture endpoint or token logging.
+
+Manual testing (use a disposable local database/account):
+
+1. Configure the existing server `.env` and frontend `.env` as described above.
+   Start the API from `server` with
+   `node --inspect --env-file-if-exists=.env src/server.js`, and run `npm run dev`
+   from the project root. Open the Vite URL with its configured basename.
+2. Register a disposable account, then open Login and choose Forgot password.
+   Submit an empty email and an invalid email; validation should prevent requests.
+3. Attach your local JavaScript debugger to the API. Set a breakpoint inside
+   `deliverPasswordReset(details)` in `server/src/services/passwordResetDelivery.js`.
+   Submit the registered email with uppercase letters and surrounding spaces.
+   At the breakpoint inspect `details.token` in debugger memory, then resume.
+   Do not paste the token into logs, source control, or shared screenshots.
+4. Confirm the generic success message. Submit an unknown address and verify the
+   identical response/status/message and no delivery breakpoint for that address.
+5. Open the Vite app's `reset-password?token=<value from debugger>` URL under the
+   configured basename. Check empty fields, a short password, and mismatched
+   confirmation. Check each Show/Hide button independently.
+6. Enter a valid matching new password and submit. While pending, controls should
+   be disabled. Success removes the form and query token and links back to Login.
+   Login with the old password must fail; the new password must succeed.
+7. Reopen the consumed link; submitting must fail with the generic invalid/expired
+   message. Request two new links; the first must fail and the latest must work.
+   Wait 15 minutes with an unused link and verify it expires. A missing token URL
+   must show a safe message and link to request another reset.
+8. In browser DevTools verify reset requests include only token/newPassword and no
+   confirmation/userId, and neither localStorage nor sessionStorage contains a reset
+   token. Normal API user JSON must contain no password/reset fields.
+9. Run `npm test`, `npm run test:integration`, `npm --prefix server test`,
+   `npm run test:smoke`, `npm run lint`, `npm run build`, and `git diff --check`.
+   Smoke tests run against disposable MongoDB and exercise the full real reset UI/API.

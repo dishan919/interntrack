@@ -131,3 +131,31 @@ export async function changePassword(accessToken, { currentPassword, newPassword
   if (data?.message !== 'Password changed successfully.') throw new Error('The server returned an invalid response. Please try again.')
   return { message: 'Password changed successfully.' }
 }
+
+export const RESET_REQUEST_MESSAGE = 'If an account exists for that email, password reset instructions have been sent.'
+export const RESET_SUCCESS_MESSAGE = 'Password reset successfully. Please sign in with your new password.'
+export const INVALID_RESET_MESSAGE = 'Password reset link is invalid or has expired.'
+async function resetRequest(path, body, successMessage) {
+  let response
+  try {
+    response = await fetch(`${API_URL}/auth/${path}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+  } catch { throw new Error('Unable to reach the server. Check your connection and try again.') }
+  if (!response.ok) {
+    const safe = new Set([INVALID_RESET_MESSAGE, 'A valid email address is required', 'New password must be at least 8 characters', 'New password must be at most 72 UTF-8 bytes'])
+    let message
+    if (response.status === 400) {
+      try { message = (await response.json()).message } catch { /* Safe fallback. */ }
+    }
+    throw new Error(safe.has(message) ? message : 'Unable to process your request. Please try again.')
+  }
+  // Never forward server token/user fields to the page.
+  return { message: successMessage }
+}
+export function requestPasswordReset(email) {
+  return resetRequest('forgot-password', { email: email.trim() }, RESET_REQUEST_MESSAGE)
+}
+export function resetPassword(token, newPassword) {
+  return resetRequest('reset-password', { token, newPassword }, RESET_SUCCESS_MESSAGE)
+}

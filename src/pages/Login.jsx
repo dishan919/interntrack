@@ -72,6 +72,7 @@ export default function Login() {
           <button type="submit" className="button primary register-submit" disabled={pending}>{pending ? 'Signing in...' : 'Sign in'}</button>
           {pending && <span role="status" className="register-hint">Signing in...</span>}
         </form>
+      <p className="register-login"><Link to="/forgot-password">Forgot password?</Link></p>
       <p className="register-login">New to InternTrack? <Link to="/register">Create an account</Link></p>
     </section>
     <p className="register-footer">Made for your next move.</p>

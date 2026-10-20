@@ -1,6 +1,7 @@
+import { passwordError } from '../services/passwordPolicy.js'
 import bcrypt from 'bcryptjs'
 import { createAccessToken, getJwtSecret } from '../config/jwt.js'
-import User, { EMAIL_PATTERN, MIN_PASSWORD_LENGTH } from '../models/User.js'
+import User, { EMAIL_PATTERN } from '../models/User.js'
 
 function validate(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Invalid registration data'
@@ -9,10 +10,7 @@ function validate(body) {
   if (typeof body.email !== 'string' || body.email.trim().length > 254 || !EMAIL_PATTERN.test(body.email.trim())) {
     return 'A valid email address is required'
   }
-  if (typeof body.password !== 'string' || body.password.length < MIN_PASSWORD_LENGTH || !body.password.trim()) {
-    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
-  }
-  if (bcrypt.truncates(body.password)) return 'Password must be at most 72 UTF-8 bytes'
+  return passwordError(body.password)
 }
 
 export async function register(req, res) {
@@ -96,10 +94,8 @@ export async function changePassword(req, res) {
     return res.status(400).json({ message: 'Invalid password change data' })
   }
   if (typeof body.currentPassword !== 'string' || !body.currentPassword.trim()) return res.status(400).json({ message: 'Current password is required' })
-  if (typeof body.newPassword !== 'string' || body.newPassword.length < MIN_PASSWORD_LENGTH || !body.newPassword.trim()) {
-    return res.status(400).json({ message: `New password must be at least ${MIN_PASSWORD_LENGTH} characters` })
-  }
-  if (bcrypt.truncates(body.newPassword)) return res.status(400).json({ message: 'New password must be at most 72 UTF-8 bytes' })
+  const error = passwordError(body.newPassword, 'New password')
+  if (error) return res.status(400).json({ message: error })
   const user = await User.findById(req.auth.userId).select('+password')
   if (!user) return res.status(401).json({ message: 'Unauthorized' })
   // Reject bcrypt truncation matches; passwords retain their exact whitespace.
