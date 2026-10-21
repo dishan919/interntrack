@@ -291,3 +291,96 @@ test('Application schema requires and indexes an ObjectId User reference', async
   assert.ok(Application.schema.indexes().some(([keys]) => keys.owner === 1))
   await assert.rejects(Application.create(valid), error => error.errors.owner.kind === 'required')
 })
+
+
+test('owner manages structured notes with trimmed text, server IDs/timestamps and persistent reads', async () => {
+  const app = await create({ ...valid, notes: 'Earlier free-text note' })
+  const response = await request('POST', `/${app.id}/notes`, { text: '  First note\n  ' })
+  assert.equal(response.status, 201)
+  let saved = await response.json()
+  const note = saved.applicationNotes[0]
+  assert.deepEqual(Object.keys(note).sort(), ['createdAt', 'id', 'text', 'updatedAt'])
+  assert.match(note.id, /^[a-f0-9]{24}$/)
+  assert.equal(note.text, 'First note')
+  assert.ok(Number.isFinite(Date.parse(note.createdAt)))
+  assert.ok(Number.isFinite(Date.parse(note.updatedAt)))
+  assert.equal(saved.notes, 'Earlier free-text note')
+  const edit = await request('PATCH', `/${app.id}/notes/${note.id}`, { text: ' Updated note ' })
+  assert.equal(edit.status, 200)
+  saved = await edit.json()
+  assert.equal(saved.applicationNotes[0].text, 'Updated note')
+  assert.equal(saved.applicationNotes[0].createdAt, note.createdAt)
+  assert.ok(Date.parse(saved.applicationNotes[0].updatedAt) >= Date.parse(note.updatedAt))
+  assert.deepEqual((await (await request('GET', `/${app.id}`)).json()).applicationNotes, saved.applicationNotes)
+  const ordinaryEdit = await request('PUT', `/${app.id}`, { ...valid, notes: 'Legacy changed', applicationNotes: [], 'applicationNotes.0.text': 'forged' })
+  assert.equal(ordinaryEdit.status, 200)
+  assert.deepEqual((await ordinaryEdit.json()).applicationNotes, saved.applicationNotes)
+  const deleted = await request('DELETE', `/${app.id}/notes/${note.id}`)
+  assert.equal(deleted.status, 200)
+  assert.deepEqual((await deleted.json()).applicationNotes, [])
+  assert.equal((await request('DELETE', `/${app.id}/notes/${note.id}`)).status, 404)
+})
+
+test('note validation rejects malformed, empty, oversized and arbitrary metadata without writes', async () => {
+  const app = await create({ ...valid, applicationNotes: [{ text: 'forged', owner: otherUserId }] })
+  assert.equal(app.applicationNotes, undefined)
+  const added = await request('POST', `/${app.id}/notes`, { text: 'x'.repeat(2000) })
+  assert.equal(added.status, 201)
+  const note = (await added.json()).applicationNotes[0]
+  for (const body of [{}, { text: '' }, { text: ' \n\t ' }, { text: 12 }, { text: {} }, { text: 'x'.repeat(2001) }, [], null, { text: 'x', owner: otherUserId }, { text: 'x', userId }, { text: 'x', id: note.id }, { text: 'x', createdAt: '2000-01-01' }, { text: 'x', extra: true }]) {
+    for (const [method, path] of [['POST', `/${app.id}/notes`], ['PATCH', `/${app.id}/notes/${note.id}`]]) {
+      assert.equal((await request(method, path, body)).status, 400)
+    }
+  }
+  const stored = await Application.findById(app.id)
+  assert.equal(stored.applicationNotes.length, 1)
+  assert.equal(stored.applicationNotes[0].text, 'x'.repeat(2000))
+  assert.throws(() => stored.applicationNotes.push({ text: 'x', owner: userId }))
+})
+
+test('notes require JWT and existing account; other users cannot read or mutate private notes', async () => {
+  const app = await create()
+  const note = (await (await request('POST', `/${app.id}/notes`, { text: 'Private' })).json()).applicationNotes[0]
+  for (const [method, path, body] of [['POST', `/${app.id}/notes`, { text: 'stolen', owner: userId }], ['PATCH', `/${app.id}/notes/${note.id}`, { text: 'stolen', userId }], ['DELETE', `/${app.id}/notes/${note.id}`]]) {
+    for (const auth of [null, 'Bearer invalid', `Bearer ${jwt.sign({ sub: userId }, testSecret, { expiresIn: -1 })}`, `Bearer ${createAccessToken('0123456789abcdef01234567', testSecret)}`]) {
+      assert.equal((await request(method, path, body, auth)).status, 401)
+    }
+    const response = await request(method, path, body, otherAuthorization)
+    assert.equal(response.status, 404)
+    assert.deepEqual(await response.json(), { message: 'Application or note not found' })
+  }
+  assert.equal((await request('GET', `/${app.id}`, undefined, otherAuthorization)).status, 404)
+  assert.deepEqual(await (await request('GET', '', undefined, otherAuthorization)).json(), [])
+  assert.equal((await Application.findById(app.id)).applicationNotes[0].text, 'Private')
+})
+
+test('note IDs and application IDs fail safely, and notes cannot be addressed through another application', async () => {
+  const app = await create()
+  const other = await create()
+  const note = (await (await request('POST', `/${app.id}/notes`, { text: 'Private' })).json()).applicationNotes[0]
+  for (const appId of ['bad-id', '0123456789abcdef01234567']) {
+    assert.equal((await request('POST', `/${appId}/notes`, { text: 'x' })).status, 404)
+    assert.equal((await request('PATCH', `/${appId}/notes/${note.id}`, { text: 'x' })).status, 404)
+    assert.equal((await request('DELETE', `/${appId}/notes/${note.id}`)).status, 404)
+  }
+  for (const noteId of ['bad-id', '0123456789abcdef01234567', note.id]) {
+    for (const method of ['PATCH', 'DELETE']) {
+      const response = await request(method, `/${other.id}/notes/${noteId}`, { text: 'x' })
+      assert.equal(response.status, 404)
+      assert.deepEqual(await response.json(), { message: 'Application or note not found' })
+    }
+  }
+})
+
+test('concurrent note additions and ordinary edits preserve notes and deletion removes them with the application', async () => {
+  const app = await create()
+  const results = await Promise.all([
+    request('POST', `/${app.id}/notes`, { text: 'One' }),
+    request('POST', `/${app.id}/notes`, { text: 'Two' }),
+    request('PUT', `/${app.id}`, { ...valid, company: 'Updated' }),
+  ])
+  assert.deepEqual(results.map(result => result.status), [201, 201, 200])
+  assert.equal((await (await request('GET', `/${app.id}`)).json()).applicationNotes.length, 2)
+  assert.equal((await request('DELETE', `/${app.id}`)).status, 204)
+  assert.equal((await request('POST', `/${app.id}/notes`, { text: 'x' })).status, 404)
+})

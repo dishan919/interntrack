@@ -37,6 +37,13 @@ export async function createApplication(data, token = getAccessToken()) { return
 export async function updateApplication(id, data, token = getAccessToken()) { return normalize(await request('/' + encodeURIComponent(id), 'PUT', data, token)) }
 export async function deleteApplication(id, token = getAccessToken()) { await request('/' + encodeURIComponent(id), 'DELETE', undefined, token) }
 
+export async function saveApplicationNote(id, text, noteId, token = getAccessToken()) {
+  return normalize(await request(`/${encodeURIComponent(id)}/notes${noteId ? '/' + encodeURIComponent(noteId) : ''}`, noteId ? 'PATCH' : 'POST', { text }, token))
+}
+export async function deleteApplicationNote(id, noteId, token = getAccessToken()) {
+  return normalize(await request(`/${encodeURIComponent(id)}/notes/${encodeURIComponent(noteId)}`, 'DELETE', undefined, token))
+}
+
 // Explicit import only. The legacy key is never used as live application state.
 export async function importLegacyApplications(token = getAccessToken()) {
   const key = 'interntrack_applications'

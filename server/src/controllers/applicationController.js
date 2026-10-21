@@ -14,7 +14,10 @@ function validate(body) {
 
 function editableData(body) {
   const data = { ...body }
-  for (const key of ['id', '_id', '__v', 'owner', 'ownerId', 'userId']) delete data[key]
+  for (const key of ['id', '_id', '__v', 'owner', 'ownerId', 'userId', 'applicationNotes']) delete data[key]
+  for (const key of Object.keys(data)) {
+    if (key.startsWith('applicationNotes.')) delete data[key]
+  }
   return {
     ...data,
     company: body.company.trim(),
@@ -47,8 +50,16 @@ export async function updateApplication(req, res) {
   }
   const error = validate(req.body)
   if (error) return res.status(400).json({ message: error })
-  const application = await Application.findOneAndReplace(
-    { _id: req.params.id, owner: req.auth.userId }, { ...editableData(req.body), owner: req.auth.userId }, { returnDocument: 'after', runValidators: true },
+  // Replace ordinary editable data, but preserve server-managed notes atomically.
+  // A note saved concurrently must never be overwritten by a stale form payload.
+  const current = await Application.findOne({ _id: req.params.id, owner: req.auth.userId }).lean()
+  if (!current) return res.status(404).json({ message: 'Application not found' })
+  const data = editableData(req.body)
+  const remove = Object.fromEntries(Object.keys(current)
+    .filter(key => !['_id', 'owner', 'applicationNotes'].includes(key) && !Object.hasOwn(data, key))
+    .map(key => [key, '']))
+  const application = await Application.findOneAndUpdate(
+    { _id: req.params.id, owner: req.auth.userId }, { $set: data, $unset: remove }, { returnDocument: 'after', runValidators: true },
   )
   if (!application) return res.status(404).json({ message: 'Application not found' })
   res.status(200).json(application)

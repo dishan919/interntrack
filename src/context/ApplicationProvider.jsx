@@ -71,6 +71,20 @@ function UserApplications({ children, token }) {
       return true
     })
   }
+  function saveApplicationNote(id, text, noteId) {
+    return mutate(async () => {
+      const saved = await service.saveApplicationNote(id, text, noteId, token)
+      commit(current.current.map(app => app.id === id ? saved : app))
+      return saved
+    })
+  }
+  function deleteApplicationNote(id, noteId) {
+    return mutate(async () => {
+      const saved = await service.deleteApplicationNote(id, noteId, token)
+      commit(current.current.map(app => app.id === id ? saved : app))
+      return saved
+    })
+  }
   function importLegacyApplications() {
     return mutate(async () => {
       await service.importLegacyApplications(token)
@@ -88,5 +102,5 @@ function UserApplications({ children, token }) {
       return true
     })
   }
-  return <ApplicationContext.Provider value={{ applications, loading, loaded, error, pending: pending > 0, reloadApplications, importLegacyApplications, addApplication, updateApplication, deleteApplication, getApplication: id => current.current.find(app => app.id === id), clearApplications }}>{children}</ApplicationContext.Provider>
+  return <ApplicationContext.Provider value={{ applications, loading, loaded, error, pending: pending > 0, reloadApplications, importLegacyApplications, addApplication, updateApplication, deleteApplication, saveApplicationNote, deleteApplicationNote, getApplication: id => current.current.find(app => app.id === id), clearApplications }}>{children}</ApplicationContext.Provider>
 }

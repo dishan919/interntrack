@@ -483,3 +483,16 @@ input:focus, select:focus, textarea:focus { outline-width: 2px; outline-offset: 
   .skill-match-groups { grid-template-columns: minmax(0, 1fr); }
   .best-skill-item { padding: 20px 18px; }
 }
+
+/* Application Notes reuse the existing panel and form controls. */
+.application-notes-panel { margin-top: 24px; }
+.application-notes-content { padding: 24px 30px; }
+.application-notes-list { list-style: none; padding: 0; margin: 0; }
+.application-note { padding: 16px 0; border-bottom: 1px solid var(--border); }
+.application-note .notes { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+.application-note small, .application-notes-content form > small { display: block; color: var(--muted); line-height: 1.6; margin-top: 8px; }
+.application-notes-content form { margin-top: 24px; }
+.application-notes-content label { display: block; margin-bottom: 8px; font-size: 14px; }
+.application-notes-content textarea { width: 100%; resize: vertical; }
+.note-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+@media (max-width: 640px) { .application-notes-content { padding: 20px 18px; } }

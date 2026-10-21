@@ -2,6 +2,20 @@ import mongoose from 'mongoose'
 
 const { Schema } = mongoose
 export const APPLICATION_STATUSES = ['Saved', 'Applied', 'Interview', 'Offer', 'Rejected']
+export const MAX_NOTE_LENGTH = 2000
+
+const noteSchema = new Schema({
+  text: { type: String, required: true, trim: true, maxlength: MAX_NOTE_LENGTH },
+}, {
+  strict: 'throw',
+  timestamps: true,
+  versionKey: false,
+  toJSON: {
+    transform(_doc, result) {
+      return { id: result._id.toString(), text: result.text, createdAt: result.createdAt, updatedAt: result.updatedAt }
+    },
+  },
+})
 
 const applicationSchema = new Schema({
   owner: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -16,6 +30,7 @@ const applicationSchema = new Schema({
   interviewDate: Schema.Types.Mixed,
   interview: Schema.Types.Mixed,
   notes: Schema.Types.Mixed,
+  applicationNotes: { type: [noteSchema], default: undefined },
   skills: Schema.Types.Mixed,
   documents: Schema.Types.Mixed,
   activity: Schema.Types.Mixed,
