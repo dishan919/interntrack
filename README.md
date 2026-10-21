@@ -77,7 +77,15 @@ Run these PowerShell commands from the project root.
 
 Open **http://localhost:5173/interntrack/**, or the URL printed by Vite with
 `/interntrack/` appended. The API defaults to **http://localhost:5000/api**.
-The current CORS configuration allows frontend origins on port 5173.
+Outside production, CORS allows exactly `http://localhost:5173` and
+`http://127.0.0.1:5173`. Set `CLIENT_ORIGIN` to additionally allow your frontend
+origin, for example `CLIENT_ORIGIN=https://example.com`.
+With `NODE_ENV=production`, only the configured `CLIENT_ORIGIN` is allowed;
+an empty value grants no browser origin access. Requests without an Origin
+header continue normally, and CORS does not replace API authentication.
+Use an exact HTTP/HTTPS origin with no trailing slash, path, credentials, query,
+or fragment. Invalid nonempty configuration prevents startup with a safe error.
+Restart the backend after changing this setting. No wildcard origins are allowed.
 
 ## Environment variables
 
@@ -87,6 +95,7 @@ The current CORS configuration allows frontend origins on port 5173.
 | `server/.env` | `MONGODB_URI` | Required MongoDB connection string |
 | `server/.env` | `JWT_SECRET` | Required secret for signing and verifying JWTs |
 | `server/.env` | `PORT` | Optional API port; defaults to `5000` |
+| `server/.env` | `CLIENT_ORIGIN` | Optional exact frontend origin; required for browser access in production |
 
 Use your own local values. Real `.env` files are ignored; never commit secrets.
 Restart the relevant development server after changing its environment file.
