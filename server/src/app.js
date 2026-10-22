@@ -4,6 +4,7 @@ import healthRoutes from './routes/healthRoutes.js'
 import applicationRoutes from './routes/applicationRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 import { createCorsOptions } from './config/cors.js'
+import { isManagedPhoto, profilePhotoStorage } from './services/profilePhotoStorage.js'
 
 export function createApp(env = process.env) {
   const app = express()
@@ -14,6 +15,19 @@ export function createApp(env = process.env) {
   app.use('/api/health', healthRoutes)
   app.use('/api/applications', applicationRoutes)
   app.use('/api/auth', authRoutes)
+
+  app.get('/api/profile-photos/:filename', async (req, res, next) => {
+    if (!isManagedPhoto(req.params.filename)) return res.status(404).json({ message: 'Photo not found' })
+    try {
+      const bytes = await profilePhotoStorage.read(req.params.filename)
+      res.set('X-Content-Type-Options', 'nosniff')
+      res.set('Cache-Control', 'no-store')
+      return res.type('webp').send(bytes)
+    } catch (error) {
+      if (error.code === 'ENOENT') return res.status(404).json({ message: 'Photo not found' })
+      return next(error)
+    }
+  })
 
   app.use((_req, res) => {
     res.status(404).json({ message: 'Route not found' })

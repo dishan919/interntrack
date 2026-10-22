@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { createTokenDelivery } from './testTokenDelivery.js'
+import { photoUrl } from './profilePhotoStorage.js'
 
 export const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000
 export const INVALID_VERIFICATION_MESSAGE = 'Email verification link is invalid or has expired.'
@@ -16,5 +17,6 @@ const delivery = createTokenDelivery()
 export const setTestVerificationCapture = delivery.setCapture
 export const deliverEmailVerification = delivery.deliver
 export function safeUser(user) {
-  return { id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified === true }
+  const profilePhotoUrl = photoUrl(user.profilePhoto)
+  return { id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified === true, ...(profilePhotoUrl ? { profilePhotoUrl } : {}) }
 }

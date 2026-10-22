@@ -5,6 +5,7 @@ import EmailVerification from '../components/profile/EmailVerification'
 import DeleteAccount from '../components/profile/DeleteAccount'
 import RecentLoginActivity from '../components/profile/RecentLoginActivity'
 import ChangePassword from '../components/profile/ChangePassword'
+import ProfilePhoto from '../components/profile/ProfilePhoto'
 import '../styles/profile.css'
 
 export default function Profile() {
@@ -49,6 +50,7 @@ export default function Profile() {
     </div></div>
     {message && <div className="notice" role="status">{message}</div>}
     <fieldset className="profile-controls" disabled={deletionPending}>
+    <ProfilePhoto />
     <section className="panel profile-panel" aria-labelledby="account-heading">
       <div className="panel-heading"><h2 id="account-heading">Account information</h2></div>
       {editing ? <form className="profile-form" ref={formRef} onSubmit={save} noValidate aria-busy={pending}>

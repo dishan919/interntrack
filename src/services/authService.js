@@ -1,8 +1,9 @@
 import { bearerHeaders, invalidateSession } from './authSession.js'
+import { photoState } from '../utils/profilePhoto.js'
 
 const API_URL = (import.meta.env?.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '')
 function verificationState(user) {
-  return typeof user.emailVerified === 'boolean' ? { emailVerified: user.emailVerified } : {}
+  return { ...(typeof user.emailVerified === 'boolean' ? { emailVerified: user.emailVerified } : {}), ...photoState(user) }
 }
 const safeValidationMessages = new Set([
   'Name is required', 'Name must be at most 120 characters',

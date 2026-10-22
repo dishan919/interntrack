@@ -34,3 +34,10 @@
 .login-activity-list time { font-weight: 600; }
 .login-activity-list span { font-size: 13px; color: var(--muted); }
 @media (max-width: 640px) { .login-activity-content { padding: 0 20px 20px; } }
+
+.profile-photo-panel { margin-bottom: 24px; }
+.profile-photo-content { padding: 24px 28px; display: grid; justify-items: start; gap: 14px; }
+.profile-photo-avatar { width: 88px; height: 88px; font-size: 30px; border: 1px solid var(--border); }
+.profile-photo-content input { max-width: 100%; }
+.profile-photo-content label { font-size: 14px; font-weight: 600; }
+@media (max-width: 640px) { .profile-photo-content { padding: 20px; } }

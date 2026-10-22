@@ -29,3 +29,7 @@ dist-ssr
 *.sw?
 
 .npm-cache/
+
+# Local profile uploads are private development artifacts, never source files.
+server/uploads/profile-photos/*
+!server/uploads/profile-photos/.gitkeep

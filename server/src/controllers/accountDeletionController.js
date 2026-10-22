@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import User from '../models/User.js'
 import Application from '../models/Application.js'
 import { withAccountOperation } from '../services/accountOperations.js'
+import { removeProfilePhoto } from '../services/profilePhotoStorage.js'
 
 export async function deleteAccount(req, res) {
   const body = req.body
@@ -23,6 +24,7 @@ export async function deleteAccount(req, res) {
     // The shared account queue prevents concurrent application writes here.
     await Application.deleteMany({ owner: req.auth.userId })
     await LoginActivity.deleteMany({ user: req.auth.userId })
+    await removeProfilePhoto(user.profilePhoto)
     // A concurrent password change/reset must not authorize deletion with an old hash.
     const result = await User.deleteOne({ _id: req.auth.userId, password: user.password })
     if (result.deletedCount !== 1) return res.status(409).json({ message: 'Account changed. Please sign in again and retry.' })

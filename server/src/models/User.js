@@ -1,10 +1,12 @@
 import mongoose from 'mongoose'
 import bcrypt from 'bcryptjs'
+import { isManagedPhoto } from '../services/profilePhotoStorage.js'
 
 export const MIN_PASSWORD_LENGTH = 8
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const userSchema = new mongoose.Schema({
+  profilePhoto: { type: String, validate: isManagedPhoto },
   emailVerified: { type: Boolean, default: false },
   emailVerificationTokenHash: { type: String, select: false },
   emailVerificationExpiresAt: { type: Date, select: false },
@@ -32,6 +34,7 @@ const userSchema = new mongoose.Schema({
       delete result.passwordResetTokenHash
       delete result.passwordResetExpiresAt
       delete result.password
+      delete result.profilePhoto
       return result
     },
   },

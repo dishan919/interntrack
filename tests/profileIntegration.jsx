@@ -33,7 +33,9 @@ export default async function verify() {
     assert.deepEqual([...container.querySelectorAll('dt')].map(node => node.textContent), ['Full name', 'Email address'])
     assert.deepEqual([...container.querySelectorAll('dd')].map(node => node.textContent), [user.name, user.email])
     assert.doesNotMatch(container.innerHTML, /private-password-marker|private-profile-token-marker/)
-    assert.equal(container.querySelector('input'), null)
+    assert.equal(container.querySelector('input:not([type="file"])'), null)
+    assert.equal(container.querySelectorAll('input[type="file"]').length, 1)
+    assert.equal(container.querySelector('input[type="file"]').accept, 'image/jpeg,image/png,image/webp')
     assert.match(container.textContent, /change your password in Security/)
   }
   try {

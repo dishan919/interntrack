@@ -6,6 +6,7 @@ import { forgotPassword, resetPassword } from '../controllers/passwordResetContr
 import { Router } from 'express'
 import { login, me, register, updateMe, changePassword } from '../controllers/authController.js'
 import authenticate from '../middleware/authenticate.js'
+import { uploadProfilePhoto, deleteProfilePhoto } from '../controllers/profilePhotoController.js'
 
 const router = Router()
 
@@ -20,5 +21,7 @@ router.get('/me', authenticate, me)
 router.delete('/me', authenticate, deleteAccount)
 router.patch('/me', authenticate, updateMe)
 router.patch('/password', authenticate, changePassword)
+router.post('/me/photo', authenticate, existingAccount(uploadProfilePhoto))
+router.delete('/me/photo', authenticate, existingAccount(deleteProfilePhoto))
 
 export default router

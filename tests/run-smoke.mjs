@@ -1,6 +1,8 @@
 // Real React UI -> service -> Express -> disposable MongoDB. No personal database.
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
+import { createRequire } from 'node:module'
+import { removeProfilePhoto } from '../server/src/services/profilePhotoStorage.js'
 import { JSDOM } from 'jsdom'
 import { createServer, resolveConfig } from 'vite'
 import User from '../server/src/models/User.js'
@@ -23,6 +25,7 @@ process.env.JWT_SECRET = "feature04-ui-smoke-test-secret"
 const { base } = await resolveConfig({}, 'serve')
 const database = await startTestDatabase()
 let backend, vite, root
+const smokePhotoReferences = new Set()
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: `http://localhost${base}applications/new` })
 globalThis.window = dom.window
 globalThis.document = dom.window.document
@@ -161,6 +164,40 @@ try {
   assert.match(container.textContent, /Smoke User/)
   assert.match(container.textContent, /smoke@example.com/)
   const profileToken = window.sessionStorage.getItem('interntrack_access_token')
+  // Exercise real multipart bytes and local storage through the Profile UI.
+  const serverRequire = createRequire(new URL('../server/package.json', import.meta.url))
+  const sharp = serverRequire('sharp')
+  const photoBytes = await sharp({ create: { width: 12, height: 12, channels: 3, background: '#6d5dfb' } }).png().toBuffer()
+  const photoPanel = () => container.querySelector('[aria-labelledby="profile-photo-heading"]')
+  async function choosePhoto() {
+    await act(async () => {
+      const input = photoPanel().querySelector('input[type="file"]')
+      Object.defineProperty(input, 'files', { configurable: true, value: [new File([photoBytes], 'smoke.png', { type: 'image/png' })] })
+      input.dispatchEvent(new window.Event('change', { bubbles: true }))
+    })
+  }
+  await choosePhoto()
+  await click(button('Upload Photo'))
+  await waitFor(() => photoPanel().textContent.includes('Profile photo updated.'))
+  const firstPhoto = (await User.findById(user.id)).profilePhoto
+  smokePhotoReferences.add(firstPhoto)
+  assert.equal(container.querySelectorAll('.user-avatar img').length, 3)
+  assert.ok(photoPanel().querySelector('img').src.startsWith(`http://127.0.0.1:${backend.address().port}/api/profile-photos/`))
+  await refresh()
+  assert.equal(container.querySelectorAll('.user-avatar img').length, 3)
+  await choosePhoto()
+  await click(button('Change Photo'))
+  await waitFor(() => photoPanel().textContent.includes('Profile photo updated.'))
+  const replacementPhoto = (await User.findById(user.id)).profilePhoto
+  smokePhotoReferences.add(replacementPhoto)
+  assert.notEqual(replacementPhoto, firstPhoto)
+  assert.equal((await originalFetch(`${process.env.VITE_API_URL}/profile-photos/${firstPhoto}`)).status, 404)
+  await click(button('Remove Photo'))
+  await waitFor(() => photoPanel().textContent.includes('Profile photo removed.'))
+  assert.equal(container.querySelectorAll('.user-avatar img').length, 0)
+  assert.equal((await User.findById(user.id)).profilePhoto, undefined)
+  assert.equal((await originalFetch(`${process.env.VITE_API_URL}/profile-photos/${replacementPhoto}`)).status, 404)
+  console.log('PASS: real Profile multipart upload/replace/remove, safe serving, refresh/context avatars and local old-file cleanup')
   const activityPanel = () => container.querySelector('[aria-labelledby="login-activity-heading"]')
   await waitFor(() => activityPanel()?.querySelectorAll('li').length >= 2)
   assert.match(activityPanel().textContent, /Chrome on Windows/)
@@ -346,6 +383,7 @@ try {
   root = null
 } finally {
   console.log('Smoke: cleaning up')
+  for (const reference of smokePhotoReferences) await removeProfilePhoto(reference)
   setTestVerificationCapture(undefined)
   setTestResetCapture(undefined)
   if (originalNodeEnv === undefined) delete process.env.NODE_ENV

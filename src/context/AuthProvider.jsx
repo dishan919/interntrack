@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AuthContext } from './AuthContext'
 import * as service from '../services/authService'
+import { changeProfilePhoto } from '../services/profilePhotoService'
 import { readStoredToken, storeToken, removeStoredToken, setAccessToken, onUnauthorized } from '../services/authSession'
 
 const signedOut = { user: null, accessToken: null, isAuthLoading: false }
@@ -66,6 +67,16 @@ export default function AuthProvider({ children }) {
     return result
   }
 
+  async function updateProfilePhoto(file) {
+    const attempt = version.current
+    const token = session.accessToken
+    if (!token || !session.user) throw new Error('Please sign in again.')
+    const result = await changeProfilePhoto(token, file)
+    if (attempt !== version.current) throw new Error('Photo update was cancelled. Please sign in again.')
+    setSession(current => current.accessToken === token ? { ...current, user: { ...current.user, profilePhotoUrl: result.user.profilePhotoUrl } } : current)
+    return result.user
+  }
+
   const refreshCurrentUser = useCallback(async () => {
     const attempt = version.current
     const token = session.accessToken
@@ -76,5 +87,5 @@ export default function AuthProvider({ children }) {
     return result.user
   }, [session.accessToken])
 
-  return <AuthContext.Provider value={{ ...session, isAuthenticated: Boolean(session.user && session.accessToken), login, logout, updateProfile, refreshCurrentUser, deleteAccount }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ ...session, isAuthenticated: Boolean(session.user && session.accessToken), login, logout, updateProfile, updateProfilePhoto, refreshCurrentUser, deleteAccount }}>{children}</AuthContext.Provider>
 }
