@@ -16,7 +16,9 @@ export default async function verify() {
   const record = { id: 'route-test', company: 'Example Company', position: 'Routing Intern', status: 'Saved' }
   installApi(new Map([['interntrack_applications', JSON.stringify([record])]]))
   const rest = globalThis.fetch
-  globalThis.fetch = (url, options) => url.endsWith('/auth/login-activity')
+  globalThis.fetch = (url, options) => url.endsWith('/notifications')
+    ? Promise.resolve(new Response('{"notifications":[],"unreadCount":0}'))
+    : url.endsWith('/auth/login-activity')
     ? Promise.resolve(new Response('{"activities":[]}'))
     : url.endsWith('/auth/me')
     ? Promise.resolve(new Response(JSON.stringify({ user: { id: 'route-user', name: 'Route User', email: 'route@example.com' } })))

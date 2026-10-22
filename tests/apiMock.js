@@ -2,6 +2,7 @@
 export function installApi(store = new Map(), key = 'interntrack_applications', onWrite = () => {}) {
   const calls = []
   globalThis.fetch = async (url, options = {}) => {
+    if (url.endsWith('/notifications')) return Promise.resolve(new Response('{"notifications":[],"unreadCount":0}'))
     const method = options.method || 'GET'
     const id = decodeURIComponent(new URL(url).pathname.split('/applications/')[1] || '')
     let records = JSON.parse(store.get(key) || '[]')

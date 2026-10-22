@@ -23,6 +23,7 @@ export default async function verify() {
   let deferredMe, deferredApplications, deferMe = false, deferApplications = false, failApplications = false
   function install() {
     globalThis.fetch = async (url, options = {}) => {
+      if (url.endsWith('/notifications')) return Promise.resolve(new Response('{"notifications":[],"unreadCount":0}'))
       calls.push({ url, options })
       if (url.endsWith('/auth/login')) {
         const body = JSON.parse(options.body)

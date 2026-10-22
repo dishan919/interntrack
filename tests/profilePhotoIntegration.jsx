@@ -36,6 +36,7 @@ export default async function verify() {
   }
   try {
     globalThis.fetch = async (url, options = {}) => {
+      if (url.endsWith('/notifications')) return Promise.resolve(new Response('{"notifications":[],"unreadCount":0}'))
       if (url.endsWith('/applications')) return json([])
       if (url.endsWith('/auth/login-activity')) return json({ activities: [] })
       if (url.endsWith('/auth/me')) return json({ user: options.headers.Authorization === 'Bearer photo-token-b' ? { id: 'photo-b', name: 'Bob', email: 'bob@example.com' } : user })

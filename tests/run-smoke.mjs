@@ -6,6 +6,7 @@ import { removeProfilePhoto } from '../server/src/services/profilePhotoStorage.j
 import { JSDOM } from 'jsdom'
 import { createServer, resolveConfig } from 'vite'
 import User from '../server/src/models/User.js'
+import Notification from '../server/src/models/Notification.js'
 import LoginActivity from '../server/src/models/LoginActivity.js'
 import app from '../server/src/app.js'
 import { setTestVerificationCapture } from '../server/src/services/emailVerification.js'
@@ -70,6 +71,7 @@ try {
     root = createRoot(container)
     await act(async () => root.render(createElement(App)))
     await waitFor(() => !container.textContent.includes('Loading applications') && !container.textContent.includes('Checking your session')
+      && container.querySelector('.notification-bell')?.getAttribute('aria-busy') !== 'true'
       && container.querySelector('[aria-labelledby="login-activity-heading"]')?.getAttribute('aria-busy') !== 'true')
   }
   async function input(name, value) {
@@ -125,6 +127,30 @@ try {
   assert.equal((await read())[0].applicationNotes[0].text, 'Updated API note')
   await click(container.querySelector(`a[href="${base}applications"]`))
   await click(button('Board View'))
+  // Real UI regression: Interview -> Applied must reach MongoDB and the navbar.
+  for (const [status, count] of [['Interview', 1], ['Applied', 2]]) {
+    await act(async () => {
+      const control = container.querySelector('.kanban-card select')
+      control.value = status
+      control.dispatchEvent(new window.Event('change', { bubbles: true }))
+    })
+    await waitFor(() => !container.textContent.includes('Saving changes') && container.querySelector('.notification-count')?.textContent === String(count))
+    assert.equal((await read())[0].status, status)
+  }
+  const reverseNotifications = await Notification.find({ user: user.id, application: id, title: 'Application: Applied' })
+  assert.equal(reverseNotifications.length, 1)
+  assert.equal(reverseNotifications[0].message, 'Step 4 Updated: status changed from Interview to Applied.')
+  await click(container.querySelector('.notification-bell'))
+  await waitFor(() => container.querySelector('.notification-panel')?.textContent.includes('Interview to Applied'))
+  await click(button('Refresh notifications'))
+  await waitFor(() => container.querySelector('.notification-panel')?.getAttribute('aria-busy') === 'false')
+  assert.equal([...container.querySelectorAll('.notification-title strong')].filter(node => node.textContent === 'Application: Applied').length, 1)
+  assert.match(container.querySelector('.notification-panel').textContent, /Interview to Applied/)
+  assert.equal(await Notification.countDocuments({ user: user.id, application: id, title: 'Application: Applied' }), 1)
+  await click(button('Mark all as read'))
+  await waitFor(() => !container.querySelector('.notification-count') && !container.textContent.includes('Updating notifications'))
+  await click(container.querySelector('[aria-label="Close notifications"]'))
+  console.log('PASS: real Interview -> Applied status regression, one persisted private notification, automatic navbar update and explicit refresh without duplicates')
   const select = container.querySelector('.kanban-card select')
   await act(async () => {
     select.value = 'Offer'
@@ -136,6 +162,21 @@ try {
   records = await read()
   assert.equal(records[0].status, 'Offer')
   assert.equal(records[0].activity.at(-1).type, 'status_changed')
+  await waitFor(() => container.querySelector('.notification-count')?.textContent === '1')
+  await click(container.querySelector('.notification-bell'))
+  await waitFor(() => container.querySelector('.notification-panel')?.textContent.includes('Application: Offer'))
+  assert.match(container.querySelector('.notification-panel').textContent, /Step 4 Updated/)
+  await click(button('Mark as read'))
+  await waitFor(() => !container.querySelector('.notification-count') && !container.textContent.includes('Updating notifications'))
+  assert.equal(await Notification.countDocuments({ user: user.id, read: true }), 3)
+  await refresh()
+  assert.equal(container.querySelector('.notification-count'), null)
+  await click(container.querySelector('.notification-bell'))
+  await waitFor(() => container.querySelector('.notification-read'))
+  await click(container.querySelector('.notification-panel a'))
+  assert.equal(window.location.pathname, `${base}applications/${id}`)
+  console.log('PASS: real status event/notification observer, private navbar unread badge, mark read, refresh persistence and application navigation')
+  await click(container.querySelector(`a[href="${base}applications"]`))
   await click(container.querySelector(`a[href="${base}applications/${id}"]`))
   assert.match(notesPanel().textContent, /Updated API note/)
   await click([...notesPanel().querySelectorAll('button')].find(node => node.textContent === 'Delete'))
@@ -151,6 +192,7 @@ try {
   await click(button('Sign out'))
   await waitFor(() => window.location.pathname === `${base}login`)
   assert.equal(window.sessionStorage.getItem('interntrack_access_token'), null)
+  assert.equal(container.querySelector('.notification-bell'), null)
   // Exercise the real login form and provider, in addition to restoration above.
   await input('email', 'smoke@example.com')
   await input('password', 'TestPassword123')
@@ -349,6 +391,7 @@ try {
   assert.doesNotMatch(container.textContent, /Updated Smoke User|Deleted Smoke A1|Deleted Smoke A2/)
   assert.equal(await User.findById(user.id), null)
   assert.ok(await User.findById(otherUser.id))
+  assert.equal(await Notification.countDocuments({ user: user.id }), 0)
   assert.equal(await LoginActivity.countDocuments({ user: user.id }), 0)
   assert.equal(await LoginActivity.countDocuments({ user: otherUser.id }), 1)
   assert.deepEqual(await loginHistory(otherLogin.accessToken), otherHistory)

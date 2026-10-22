@@ -53,6 +53,7 @@ export default async function verify() {
     await unmount()
 
     globalThis.fetch = async (url, options) => {
+      if (url.endsWith('/notifications')) return Promise.resolve(new Response('{"notifications":[],"unreadCount":0}'))
       calls.push({ url, options })
       if (url.endsWith('/auth/login-activity')) return new Response('{"activities":[]}')
       if (url.endsWith('/auth/me')) {

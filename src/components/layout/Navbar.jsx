@@ -1,3 +1,4 @@
+import NotificationBell from './NotificationBell'
 import UserAvatar from '../common/UserAvatar'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
@@ -38,7 +39,7 @@ export default function Navbar({ toggle, open }) {
     triggerRef.current?.focus()
   }
   const section = pathname === '/' ? 'Dashboard' : pathname.startsWith('/applications') ? 'Applications' : pathname.slice(1)
-  return <header className="navbar"><div className="breadcrumb"><button className="menu-toggle" aria-label="Toggle navigation" aria-expanded={open} onClick={toggle}>?</button><span>Workspace</span><span>/</span><strong>{section}</strong></div><div className="header-right"><span className="local-label"><span className="online-dot" /> Saved on this device</span><div className="workspace-dropdown" ref={workspaceRef} onBlur={event => {
+  return <header className="navbar"><div className="breadcrumb"><button className="menu-toggle" aria-label="Toggle navigation" aria-expanded={open} onClick={toggle}>?</button><span>Workspace</span><span>/</span><strong>{section}</strong></div><div className="header-right"><NotificationBell /><span className="local-label"><span className="online-dot" /> Saved on this device</span><div className="workspace-dropdown" ref={workspaceRef} onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget)) setWorkspaceOpen(false)
   }}><button type="button" className="avatar small" ref={triggerRef} aria-label="Student Workspace" aria-expanded={workspaceOpen} aria-controls={dropdownId} onClick={() => setWorkspaceOpen(!workspaceOpen)}><UserAvatar user={user} /></button>{workspaceOpen && <div className="workspace-menu" id={dropdownId}><div className="workspace-menu-heading">{user.name}</div><Link ref={settingsRef} to="/profile" onClick={closeWorkspace}>Profile</Link><Link to="/settings" onClick={closeWorkspace}>Settings</Link><button type="button" onClick={() => {
     exportApplicationData(applications)

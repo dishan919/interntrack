@@ -31,6 +31,7 @@ export default async function verify() {
     const sessionBefore = JSON.stringify(window.sessionStorage)
     const localBefore = JSON.stringify(window.localStorage)
     globalThis.fetch = async (url, options = {}) => {
+      if (url.endsWith('/notifications')) return Promise.resolve(new Response('{"notifications":[],"unreadCount":0}'))
       if (url.endsWith('/auth/login-activity')) return new Response('{"activities":[]}')
       if (url.endsWith('/auth/me')) return new Response(JSON.stringify({ user }))
       if (url.endsWith('/applications')) return new Response('[]')

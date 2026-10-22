@@ -83,6 +83,7 @@ export default async function verify() {
     assert.match(container.querySelector('[role="alert"]').textContent, /Check your connection/)
     assert.doesNotMatch(container.textContent, /private diagnostic/)
     globalThis.fetch = async (url, options) => {
+      if (url.endsWith('/notifications')) return Promise.resolve(new Response('{"notifications":[],"unreadCount":0}'))
       if (url.endsWith('/applications')) {
         assert.equal(options.headers.Authorization, 'Bearer never-display-test-token')
         return new Response('[]')

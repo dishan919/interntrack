@@ -1,3 +1,4 @@
+import { publishApplicationEvents } from '../services/applicationEvents.js'
 import mongoose from 'mongoose'
 import Application, { APPLICATION_STATUSES as statuses } from '../models/Application.js'
 
@@ -41,6 +42,7 @@ export async function createApplication(req, res) {
   const error = validate(req.body)
   if (error) return res.status(400).json({ message: error })
   const application = await Application.create({ ...editableData(req.body), owner: req.auth.userId })
+  await publishApplicationEvents(req.auth.userId, null, application)
   res.status(201).location(`/api/applications/${application.id}`).json(application)
 }
 
@@ -62,6 +64,7 @@ export async function updateApplication(req, res) {
     { _id: req.params.id, owner: req.auth.userId }, { $set: data, $unset: remove }, { returnDocument: 'after', runValidators: true },
   )
   if (!application) return res.status(404).json({ message: 'Application not found' })
+  await publishApplicationEvents(req.auth.userId, current, application)
   res.status(200).json(application)
 }
 

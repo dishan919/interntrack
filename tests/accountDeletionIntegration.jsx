@@ -53,6 +53,7 @@ export default async function verify() {
   }
   try {
     globalThis.fetch = async (url, options = {}) => {
+      if (url.endsWith('/notifications')) return Promise.resolve(new Response('{"notifications":[],"unreadCount":0}'))
       if (url.endsWith('/auth/login-activity')) return new Response('{"activities":[]}')
       if (url.endsWith('/auth/login')) {
         const key = JSON.parse(options.body).email[0]

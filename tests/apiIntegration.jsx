@@ -14,7 +14,7 @@ export default async function verifyApiIntegration() {
   const calls = installApi(server)
   const rest = globalThis.fetch
   let resolveLoad
-  globalThis.fetch = () => new Promise(resolve => { resolveLoad = resolve })
+  globalThis.fetch = url => url.endsWith('/notifications') ? Promise.resolve(new Response('{"notifications":[],"unreadCount":0}')) : new Promise(resolve => { resolveLoad = resolve })
   let context
   function Capture() { const value = useApplications(); useEffect(() => { context = value }); return null }
   const container = document.createElement('div')

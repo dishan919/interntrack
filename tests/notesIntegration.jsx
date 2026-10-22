@@ -33,6 +33,7 @@ export default async function verify() {
   }
   try {
     globalThis.fetch = async (url, options = {}) => {
+      if (url.endsWith('/notifications')) return Promise.resolve(new Response('{"notifications":[],"unreadCount":0}'))
       assert.equal(options.headers?.Authorization, 'Bearer notes-user-a')
       if (url.endsWith('/auth/me')) return json({ user: { id: 'user-a', name: 'A', email: 'a@example.com' } })
       if (url.endsWith('/applications')) { applicationReads++; return json([application]) }
