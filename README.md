@@ -87,6 +87,55 @@ Use an exact HTTP/HTTPS origin with no trailing slash, path, credentials, query,
 or fragment. Invalid nonempty configuration prevents startup with a safe error.
 Restart the backend after changing this setting. No wildcard origins are allowed.
 
+## Run the local Docker stack
+
+Requires Docker Engine/Desktop running Linux containers and Docker Compose v2.
+This uses production-built frontend/backend images locally; source changes need
+an image rebuild. The native `npm run dev` workflow above remains available.
+
+```powershell
+Copy-Item .env.docker.example .env.docker
+node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
+```
+
+Paste the generated value into `JWT_SECRET` in `.env.docker`. This file is ignored
+by Git and both image contexts. Never put secrets in `VITE_*` values: those become
+public browser code. Use `--env-file .env.docker` on every Compose command to keep
+this configuration separate from the native Vite `.env`.
+
+```powershell
+docker compose --env-file .env.docker config --quiet
+docker compose --env-file .env.docker build --pull
+docker compose --env-file .env.docker up -d --wait
+docker compose --env-file .env.docker ps
+```
+
+Open **http://localhost:8080/interntrack/**. Nginx serves SPA routes and proxies
+`/api` to `backend:5000`; Express connects to `mongo:27017`. Only the frontend
+publishes a host port, bound to loopback. The API health URL is
+**http://localhost:8080/api/health**. Keep `CLIENT_ORIGIN` consistent with the exact
+browser origin if changing the port/hostname; existing production CORS stays on.
+`VITE_API_URL=/api` is a build-time value, so changing it requires rebuilding the
+frontend image. Do not set it to Docker's internal `backend` hostname in a browser.
+
+```powershell
+Invoke-RestMethod http://localhost:8080/api/health
+Invoke-WebRequest http://localhost:8080/interntrack/profile -UseBasicParsing
+docker compose --env-file .env.docker logs --tail=50
+docker compose --env-file .env.docker down
+```
+
+Normal `down` keeps the named MongoDB and profile-photo volumes. Do not add `-v`
+for normal shutdown. These volumes start empty: native host data/photos are not
+copied into the images. The local Mongo service is isolated and unauthenticated;
+this Compose configuration is a local learning setup, not an internet deployment.
+The backend image also supports the existing environment variables `NODE_ENV`,
+`PORT`, `MONGODB_URI`, `JWT_SECRET`, and `CLIENT_ORIGIN`; Compose fixes production
+mode and internal port 5000 to match its proxy.
+
+See [DOCKER_ARCHITECTURE_REPORT.md](DOCKER_ARCHITECTURE_REPORT.md) for the beginner
+architecture guide, verification commands, persistence details and validation limits.
+
 ## Environment variables
 
 | File | Variable | Purpose |
