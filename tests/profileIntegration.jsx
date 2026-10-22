@@ -73,7 +73,7 @@ export default async function verify() {
     const meCount = () => calls.filter(call => call.url.endsWith('/auth/me')).length
     assert.equal(meCount(), 1)
     await click(container.querySelector('[aria-label="Student Workspace"]'))
-    const profileLink = container.querySelector(`a[href="${base}profile"]`)
+    const profileLink = container.querySelector(`.workspace-menu a[href="${base}profile"]`)
     assert.equal(document.activeElement, profileLink, 'Account menu focuses its first link')
     await click(profileLink)
     assert.equal(window.location.pathname, `${base}profile`)

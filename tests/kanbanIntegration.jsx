@@ -105,7 +105,7 @@ export default async function verifyKanbanIntegration() {
   assert.match(page(), /class="application-row"/)
 
   // Check board-specific responsive rules without changing the existing list layout.
-  const css = postcss.parse(fs.readFileSync('src/styles/global.css', 'utf8'))
+  const css = postcss.parse(fs.readFileSync('src/styles/kanban.css', 'utf8'))
   let desktopWidth, mobileWidth, overflow, keyboardFocus
   css.walkRules(rule => {
     if (rule.selector === '.kanban-board') rule.walkDecls('overflow-x', declaration => { overflow = declaration.value })

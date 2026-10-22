@@ -113,7 +113,7 @@ export default async function verify() {
     assert.match(container.textContent, /Private Company A/)
     assert.equal(applicationGets, loaded, 'Failed deletion retains existing application state')
     await click(container.querySelector('[aria-label="Student Workspace"]'))
-    await click(container.querySelector(`a[href="${base}profile"]`))
+    await click(container.querySelector(`.workspace-menu a[href="${base}profile"]`))
     await click(button('Delete Account'))
     await input('currentPassword', password, form())
     failure = null

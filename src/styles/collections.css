@@ -1,0 +1,83 @@
+.application-row { display: grid; grid-template-columns: 40px minmax(120px, 1fr) 88px 95px auto; align-items: center; gap: 18px; padding: 21px 24px; border-bottom: 1px solid var(--border); transition: background .16s; }
+.application-row:hover { background: var(--page); }
+.application-row:last-child { border-bottom: 0; }
+.company-logo, .logo-0, .logo-1, .logo-2, .logo-3 { width: 40px; height: 40px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center; font-size: 12px; font-weight: 650; background: var(--surface-muted); border: 1px solid var(--border); color: var(--muted); }
+.application-title { min-width: 0; }
+.application-title > a { display: block; font-weight: 600; font-size: 13px; line-height: 1.5; margin-bottom: 5px; overflow-wrap: anywhere; }
+.application-title > a:hover { color: var(--link); }
+.application-title .muted { font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.application-date { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1.5; }
+.application-date small { display: block; font-size: 10px; color: var(--muted); margin-top: 4px; }
+.row-actions { display: flex; gap: 4px; align-items: center; font-size: 12px; color: var(--link); }
+.row-actions a, .row-actions button { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; font-size: 12px; font-weight: 500; }
+.row-actions a:hover, .row-actions button:hover { background: var(--accent-soft); color: var(--primary-hover); }
+.row-actions .text-danger { color: var(--color-danger); }
+.row-actions .text-danger:hover { background: var(--surface-muted); color: var(--text); }
+.row-actions .arrow-link { color: var(--link); font-size: 0; }
+.arrow-link::before { content: '\2197'; font-size: 20px; }
+.calendar-symbol { font-size: 0; color: var(--muted); }
+.calendar-symbol::before { content: '\25F7'; font-size: 24px; }
+.interview-item { display: flex; align-items: center; gap: 14px; padding: 23px 24px; transition: background .16s; }
+.interview-item:hover { background: var(--page); }
+.interview-day { background: var(--surface-muted); color: var(--text); border: 1px solid var(--border); text-align: center; padding: 8px; border-radius: 8px; font-weight: 650; width: 46px; font-size: 20px; flex-shrink: 0; }
+.interview-day small { font-size: 10px; display: block; margin-top: 3px; font-weight: 500; }
+.interview-item strong { display: block; font-size: 13px; }
+.interview-item div { min-width: 0; overflow-wrap: anywhere; }
+.interview-item div > span { display: block; font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+.interview-item div > small { display: block; font-size: 11px; color: var(--muted); margin-top: 7px; }
+.encouragement { margin: 0 24px 24px; background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 18px; }
+.encouragement > span { display: none; }
+.encouragement strong { font-size: 13px; color: var(--text); }
+.encouragement p { font-size: 12px; margin-top: 7px; }
+.quiet-state { padding: 26px 24px; font-size: 13px; line-height: 1.8; color: var(--muted); }
+footer { display: flex; justify-content: space-between; padding: 20px 36px; color: var(--muted); font-size: 11px; border-top: 1px solid var(--border); gap: 20px; }
+.detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; padding: 32px; margin: 0; }
+.detail-grid dt { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.detail-grid dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; line-height: 1.6; }
+.notes { white-space: pre-wrap; line-height: 1.8; }
+.company-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.company-card { padding: 26px; transition: border-color .16s, box-shadow .16s; }
+.company-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-floating); }
+.company-card h2 { margin: 20px 0 8px; overflow-wrap: anywhere; }
+.company-card p { font-size: 13px; }
+.company-roles { margin: 20px 0; display: grid; gap: 8px; font-size: 12px; color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
+.count-pill { font-size: 12px; padding: 7px 11px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 7px; color: var(--muted); white-space: nowrap; }
+.chart { padding: 32px; display: grid; gap: 26px; }
+.chart-row { display: grid; grid-template-columns: 85px minmax(0, 1fr) 30px 38px; gap: 18px; align-items: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+.chart-row small { color: var(--muted); text-align: right; font-size: 12px; }
+.bar-track { height: 12px; background: var(--surface-muted); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--muted); border-radius: 4px; }
+.chart-note { font-size: 12px; padding: 0 32px 28px; }
+.settings-panel { max-width: 980px; }
+.setting-row { padding: 28px; display: flex; align-items: center; justify-content: space-between; gap: 30px; border-bottom: 1px solid var(--border); }
+.setting-row:last-child { border-bottom: 0; }
+.setting-row p { font-size: 13px; max-width: 570px; margin-top: 9px; }
+.text-danger { color: var(--color-danger); }
+.about-note { padding: 30px 0; color: var(--text); font-size: 13px; }
+.about-note p { font-size: 13px; margin-top: 8px; }
+
+.details-workspace { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.details-workspace > .panel { margin: 0; }
+.details-workspace .details-panel { grid-column: 1 / -1; }
+.details-workspace .application-notes-panel { grid-column: 1; grid-row: span 2; }
+.details-workspace .activity-panel { grid-column: 1 / -1; }
+.details-workspace .form-grid, .details-workspace .detail-grid { gap: 18px; padding: 24px; }
+.details-workspace .form-actions { padding: 18px 24px; }
+.application-row { grid-template-columns: 40px minmax(0, 1fr) 90px 100px auto; }
+.company-card .company-logo { width: 48px; height: 48px; background: var(--accent-soft); color: var(--primary); }
+.company-card .subtle-link { display: inline-flex; margin-top: 6px; }
+.chart-row { align-items: center; }
+.settings-panel + .settings-panel { margin-top: 24px; padding: 26px; }
+@media (max-width: 1150px) { .company-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .application-row { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; } .application-date { grid-column: 2; } .row-actions { grid-column: 2 / -1; } .details-workspace { grid-template-columns: minmax(0, 1fr); } .details-workspace .application-notes-panel { grid-column: auto; grid-row: auto; } }
+@media (max-width: 640px) {
+  .application-row { padding: 20px 18px; grid-template-columns: 36px minmax(0, 1fr); }
+  .application-row .badge, .application-row .application-date, .application-row .row-actions { grid-column: 2; }
+  .row-actions { flex-wrap: wrap; gap: 6px; }
+  .row-actions a, .row-actions button { min-height: 40px; padding: 8px; border: 1px solid var(--border); }
+  .detail-grid { padding: 22px 18px; grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .company-grid { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .setting-row { padding: 22px 18px; align-items: flex-start; flex-direction: column; gap: 16px; }
+  .chart { padding: 22px 18px; }
+  .chart-row { grid-template-columns: 64px minmax(0, 1fr) 22px 32px; gap: 9px; font-size: 12px; }
+  .chart-note { padding: 0 18px 22px; }
+}

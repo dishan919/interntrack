@@ -40,7 +40,7 @@ export default async function verify() {
   }
   try {
     for (const [path, heading] of [
-      ['', 'Track your applications.'], ['register', 'Create your account'], ['login', 'Sign in to InternTrack'],
+      ['', 'Welcome back,'], ['register', 'Create your account'], ['login', 'Sign in to InternTrack'],
       ['applications', 'Applications'], ['applications/new', 'Add application'],
       ['applications/route-test', 'Routing Intern'], ['applications/route-test/edit', 'Edit application'],
       ['companies', 'Companies'], ['statistics', 'Statistics'], ['settings', 'Settings'], ['profile', 'Profile'],
@@ -62,7 +62,7 @@ export default async function verify() {
     await click('applications/route-test/edit')
     assert.equal(container.querySelector('h1').textContent, 'Edit application')
     await click('')
-    assert.match(container.querySelector('h1').textContent, /Track your applications/)
+    assert.match(container.querySelector('h1').textContent, /Welcome back,/)
     return `PASS: basename ${base} resolves all existing routes, registration, and root/list/detail/edit internal navigation`
   } finally {
     if (root) await act(async () => root.unmount())

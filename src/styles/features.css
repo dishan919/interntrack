@@ -1,0 +1,101 @@
+/* Deadline tracker extends the existing badge, card, and responsive system. */
+.field-hint { color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.6; }
+.application-deadline { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.deadline-badge { font-variant-numeric: tabular-nums; }
+.detail-deadline { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.deadlines-panel { margin-top: 24px; }
+.deadline-item { display: grid; grid-template-columns: minmax(0, 1fr) 130px 130px; align-items: center; gap: 20px; padding: 21px 24px; border-bottom: 1px solid var(--border); transition: background .16s; }
+.deadline-item:last-child { border-bottom: 0; }
+.deadline-item:hover { background: var(--page); }
+.deadline-item:hover strong { color: var(--link); }
+.deadline-opportunity { min-width: 0; overflow-wrap: anywhere; }
+.deadline-opportunity strong { display: block; font-size: 13px; font-weight: 600; }
+.deadline-opportunity > span { display: block; font-size: 12px; line-height: 1.6; color: var(--muted); margin-top: 5px; }
+.deadline-date { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .deadline-item { grid-template-columns: minmax(0, 1fr) auto; padding: 20px 18px; gap: 12px; }
+  .deadline-opportunity { grid-column: 1 / -1; }
+  .deadline-item .deadline-badge { justify-self: end; }
+}
+
+/* Interview Tracker reuses the existing form, panel, badge, and color system. */
+.interview-form-section { min-width: 0; margin: 0 30px 28px; padding: 22px 0 0; border: 0; border-top: 1px solid var(--border); }
+.interview-form-section legend { padding: 0 12px 0 0; font-size: 16px; font-weight: 600; color: var(--text); }
+.interview-form-section legend .field-hint { margin-left: 8px; }
+.interview-form-section > p { font-size: 12px; }
+.interview-form-section .form-grid { padding: 24px 0 0; }
+.application-interview { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.interview-details-panel { margin-top: 24px; }
+.documents-panel { margin-top: 24px; }
+.follow-up-panel { margin-top: 24px; }
+.follow-up-panel form > .notice { margin: 0 30px 22px; }
+.activity-panel { margin-top: 24px; }
+.activity-timeline { list-style: none; margin: 0; padding: 24px; }
+.activity-timeline li { position: relative; padding: 0 0 24px 22px; border-left: 1px solid var(--border); }
+.activity-timeline li:last-child { padding-bottom: 0; }
+.activity-timeline li::before { content: ''; position: absolute; left: -4px; top: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
+.activity-message { font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.activity-timeline time { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+@media (max-width: 600px) { .activity-timeline { padding: 20px 18px; } }
+.documents-checklist { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px 24px; }
+.documents-checklist label { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; cursor: pointer; }
+.documents-checklist input { width: 18px; height: 18px; min-height: 18px; flex-shrink: 0; accent-color: var(--primary); }
+.interview-badge { font-variant-numeric: tabular-nums; }
+.upcoming-interview-info > .interview-badge { display: inline-flex; font-size: 11px; margin-top: 10px; }
+.upcoming-panel .interview-item { align-items: flex-start; }
+@media (max-width: 640px) {
+  .interview-form-section { margin: 0 18px 24px; }
+  .interview-form-section .form-grid { padding-top: 24px; }
+}
+
+/* Skill Match Tracker uses the existing controls and visual system. */
+.skills-form-section { min-width: 0; margin: 0 30px 28px; padding: 22px 0 0; border: 0; border-top: 1px solid var(--border); }
+.skills-form-section > legend { font-size: 16px; font-weight: 600; padding-right: 12px; }
+.skills-form-section > label { display: block; font-size: 13px; margin-bottom: 12px; }
+.skill-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.skill-chip { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding-left: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--accent-soft); font-size: 12px; }
+.skill-chip > span { overflow-wrap: anywhere; }
+.skill-chip button { flex-shrink: 0; min-width: 36px; min-height: 36px; background: transparent; border: 0; border-radius: 8px; color: var(--text); }
+.skill-input-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+.skill-input-row input { flex: 1; min-width: 0; width: 100%; }
+.skill-selections { border: 0; margin: 22px 0 0; padding: 0; min-width: 0; display: flex; flex-wrap: wrap; gap: 10px 20px; }
+.skill-selections legend { font-size: 13px; margin-bottom: 12px; }
+.skill-selections label { display: flex; align-items: center; gap: 8px; max-width: 100%; overflow-wrap: anywhere; font-size: 13px; }
+.skill-selections input { flex-shrink: 0; width: 18px; height: 18px; min-height: 18px; accent-color: var(--primary); }
+.skill-match-indicator { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.skill-match-panel, .best-skills-panel { margin-top: 24px; }
+.skill-match-content { padding: 24px 30px; overflow-wrap: anywhere; }
+.skill-match-content > p { font-size: 13px; margin-top: 8px; }
+.skill-progress { height: 8px; border-radius: 4px; overflow: hidden; background: var(--border); margin-top: 16px; }
+.skill-progress > div { height: 100%; background: var(--primary); }
+.skill-match-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
+.skill-match-groups h3 { font-size: 13px; }
+.skill-match-groups ul { list-style: none; padding: 0; font-size: 13px; line-height: 1.8; }
+.skill-match-groups p { font-size: 13px; margin-top: 12px; }
+.best-skill-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.best-skill-item:last-child { border-bottom: 0; }
+.best-skill-item:hover { background: var(--page); }
+.best-skill-item > .skill-match-indicator { flex-shrink: 0; margin-top: 0; }
+@media (max-width: 640px) {
+  .skills-form-section { margin: 0 18px 24px; }
+  .skill-input-row input { font-size: 16px; }
+  .skill-match-content { padding: 24px 18px; }
+  .skill-match-groups { grid-template-columns: minmax(0, 1fr); }
+  .best-skill-item { padding: 20px 18px; }
+}
+
+/* Application Notes reuse the existing panel and form controls. */
+.application-notes-panel { margin-top: 24px; }
+.application-notes-content { padding: 24px 30px; }
+.application-notes-list { list-style: none; padding: 0; margin: 0; }
+.application-note { padding: 16px 0; border-bottom: 1px solid var(--border); }
+.application-note .notes { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+.application-note small, .application-notes-content form > small { display: block; color: var(--muted); line-height: 1.6; margin-top: 8px; }
+.application-notes-content form { margin-top: 24px; }
+.application-notes-content label { display: block; margin-bottom: 8px; font-size: 14px; }
+.application-notes-content textarea { width: 100%; resize: vertical; }
+.note-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+@media (max-width: 640px) { .application-notes-content { padding: 20px 18px; } }
+
+.user-avatar { display: inline-grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--surface-muted); color: var(--muted); font-size: 13px; font-weight: 600; }
+.user-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }

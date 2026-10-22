@@ -106,7 +106,7 @@ export default async function verify() {
     await act(async () => respondVerify())
     assert.match(container.textContent, /Email verified successfully/)
     assert.ok(meCalls > beforeMe, 'Verification refetches safe user status')
-    await click(container.querySelector(`a[href="${base}profile"]`))
+    await click(container.querySelector(`main a[href="${base}profile"]`))
     assert.match(container.textContent, /Status: Verified/)
     assert.equal(button('Resend Verification'), undefined)
     assert.match(container.textContent, /Verify User/)

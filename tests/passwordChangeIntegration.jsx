@@ -109,7 +109,7 @@ export default async function verify() {
     await click(container.querySelector(`a[href="${base}applications"]`))
     assert.equal(window.location.pathname, `${base}applications`)
     await click(container.querySelector('[aria-label="Student Workspace"]'))
-    await click(container.querySelector(`a[href="${base}profile"]`))
+    await click(container.querySelector(`.workspace-menu a[href="${base}profile"]`))
     await click(button('Change Password'))
     for (const [key, value] of Object.entries(values)) await input(key, value)
     failure = 401

@@ -129,7 +129,7 @@ export default async function verify() {
     await input('password', 'OtherPassword123')
     await act(async () => container.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
     await click(container.querySelector('[aria-label="Student Workspace"]'))
-    await click(container.querySelector(`a[href="${base}profile"]`))
+    await click(container.querySelector(`.workspace-menu a[href="${base}profile"]`))
     assert.match(panel().textContent, /Loading login activity/)
     await act(async () => lateA())
     assert.match(panel().textContent, /Loading login activity/)

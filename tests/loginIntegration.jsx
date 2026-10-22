@@ -91,7 +91,7 @@ export default async function verify() {
       return new Response(JSON.stringify({ user: { id: 'test-id', name: 'Example User', email: 'user@example.com' }, accessToken: 'never-display-test-token' }))
     }
     await submit()
-    assert.match(container.querySelector('h1').textContent, /Track your applications/)
+    assert.match(container.querySelector('h1').textContent, /Welcome back,/)
     assert.equal(container.querySelector('input[name="password"]'), null)
     assert.doesNotMatch(container.innerHTML, /never-display-test-token|Password123/)
     assert.equal(window.location.pathname, base, 'Login redirects to dashboard with basename')

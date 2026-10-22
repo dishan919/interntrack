@@ -1,3 +1,4 @@
+import PageHeader from '../components/common/PageHeader'
 import { useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { validateProfile } from '../utils/profile'
@@ -43,11 +44,7 @@ export default function Profile() {
   }
 
   return <>
-    <div className="page-heading"><div>
-      <div className="eyebrow">YOUR ACCOUNT</div>
-      <h1>Profile</h1>
-      <p>View your InternTrack account information.</p>
-    </div></div>
+    <PageHeader title="Profile" eyebrow="YOUR ACCOUNT" description={"View your InternTrack account information."}></PageHeader>
     {message && <div className="notice" role="status">{message}</div>}
     <fieldset className="profile-controls" disabled={deletionPending}>
     <ProfilePhoto />

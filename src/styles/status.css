@@ -1,0 +1,14 @@
+/* One semantic palette shared by labels, boards and charts. */
+.badge { display: inline-flex; align-items: center; justify-self: start; gap: 6px; padding: 4px 9px; border-radius: 5px; border: 1px solid transparent; font-size: 11px; line-height: 1.6; font-weight: 600; white-space: nowrap; }
+.badge > span { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.badge-saved, .deadline-neutral { color: var(--muted); background: var(--surface-muted); }
+.badge-applied { color: var(--color-info); background: var(--color-info-soft); }
+.badge-interview, .interview-soon { color: var(--color-interview); background: var(--color-interview-soft); }
+.badge-offer { color: var(--color-success); background: var(--color-success-soft); }
+.badge-rejected, .deadline-expired { color: var(--color-danger); background: var(--color-danger-soft); }
+.deadline-urgent { color: var(--color-warning); background: var(--color-warning-soft); }
+.status-saved, .bar-saved { background: var(--muted); }
+.status-applied, .bar-applied { background: var(--color-info); }
+.status-interview, .bar-interview { background: var(--color-interview); }
+.status-offer, .bar-offer { background: var(--color-success); }
+.status-rejected, .bar-rejected { background: var(--color-danger); }

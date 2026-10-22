@@ -1,0 +1,48 @@
+/* InternTrack palette: light workspace with a permanently dark navigation rail.
+   No theme preference existed; do not read or overwrite browser preferences. */
+:root {
+  color-scheme: light;
+  --surface-sidebar: #172c36;
+  --surface-sidebar-hover: #223c47;
+  --surface-sidebar-active: #15786f;
+  --surface-page: #f3f6f7;
+  --surface-card: #ffffff;
+  --surface-muted: #edf2f4;
+  --text-primary: #1d333e;
+  --text-secondary: #576b76;
+  --text-on-dark: #f0f6f7;
+  --text-sidebar-muted: #b0c3cb;
+  --text-on-accent: #ffffff;
+  --color-primary: #08766b;
+  --color-primary-hover: #06665d;
+  --color-primary-active: #07564e;
+  --color-primary-soft: #e4f3ef;
+  --color-success: #267148;
+  --color-success-soft: #e9f5ed;
+  --color-warning: #89580c;
+  --color-warning-soft: #fff5df;
+  --color-danger: #b23538;
+  --color-danger-hover: #92292e;
+  --color-danger-soft: #fcecee;
+  --color-info: #265faa;
+  --color-info-soft: #eaf1fc;
+  --color-interview: #6e4caa;
+  --color-interview-soft: #f0ebf9;
+  --border-default: #dce5e9;
+  --border-strong: #7b909c;
+  --shadow-card: 0 2px 5px rgb(24 47 59 / 3%);
+  --shadow-floating: 0 12px 36px rgb(24 47 59 / 15%);
+  --overlay: rgb(11 26 34 / 55%);
+  --radius-card: 12px;
+  --radius-control: 7px;
+  --space-card: 24px;
+  --sidebar-width: 244px;
+  --header-height: 72px;
+  /* Compatibility aliases for existing feature components. */
+  --page: var(--surface-page); --sidebar: var(--surface-sidebar);
+  --card: var(--surface-card); --text: var(--text-primary);
+  --muted: var(--text-secondary); --border: var(--border-default);
+  --primary: var(--color-primary); --primary-hover: var(--color-primary-hover);
+  --link: var(--color-primary); --accent-soft: var(--color-primary-soft);
+  --shadow: var(--shadow-card);
+}

@@ -8,7 +8,7 @@
 .profile-field { display: grid; gap: 8px; margin-bottom: 20px; }
 .profile-field label { font-size: 13px; font-weight: 600; }
 .profile-field input { width: 100%; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
-.profile-field [role="alert"] { color: #B91C1C; font-size: 13px; }
+.profile-field [role="alert"] { color: var(--color-danger); font-size: 13px; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 12px; padding: 20px 28px; }
 .profile-form .profile-actions { padding: 0; }
 .profile-security-intro { padding: 0 28px; }
@@ -20,9 +20,9 @@
   .profile-security-intro { padding: 0 20px; }
 }
 
-.profile-danger { margin-top: 24px; border-color: #b91c1c; }
-.profile-danger .button.danger { background: #b91c1c; color: #fff; border: 1px solid #b91c1c; }
-.profile-danger .button.danger:hover { background: #991b1b; }
+.profile-danger { margin-top: 24px; border-color: var(--color-danger); }
+.profile-danger .button.danger { background: var(--color-danger); color: var(--text-on-accent); border: 1px solid var(--color-danger); }
+.profile-danger .button.danger:hover { background: var(--color-danger-hover); }
 .profile-danger .button.danger:disabled { opacity: 0.6; cursor: wait; }
 
 .profile-controls { border: 0; margin: 0; padding: 0; min-width: 0; }
@@ -37,7 +37,7 @@
 
 .profile-photo-panel { margin-bottom: 24px; }
 .profile-photo-content { padding: 24px 28px; display: grid; justify-items: start; gap: 14px; }
-.profile-photo-avatar { width: 88px; height: 88px; font-size: 30px; border: 1px solid var(--border); }
+.profile-photo-content .profile-photo-avatar { width: 88px; height: 88px; font-size: 30px; border: 1px solid var(--border); }
 .profile-photo-content input { max-width: 100%; }
 .profile-photo-content label { font-size: 14px; font-weight: 600; }
 @media (max-width: 640px) { .profile-photo-content { padding: 20px; } }
