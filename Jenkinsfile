@@ -15,6 +15,18 @@ pipeline {
             }
         }
 
+        stage('Frontend Tests') {
+            steps {
+                bat 'npm test'
+            }
+        }
+
+        stage('Backend Tests') {
+            steps {
+                bat 'cd server && npm test'
+            }
+        }
+
         stage('Lint') {
             steps {
                 bat 'npm run lint'
