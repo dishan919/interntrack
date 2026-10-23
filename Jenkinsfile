@@ -41,7 +41,13 @@ pipeline {
        stage('Docker Check') {
     steps {
         bat '"C:\\Users\\Cyborg\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" --version'
-        bat '"C:\\Users\\Cyborg\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose version'
+        
+    }
+}
+       stage('Docker Build') {
+    steps {
+        bat '"C:\\Users\\Cyborg\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" build -t interntrack-frontend:ci .'
+        bat '"C:\\Users\\Cyborg\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" build -t interntrack-backend:ci ./server'
     }
 }
     }
