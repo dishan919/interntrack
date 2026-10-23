@@ -38,10 +38,10 @@ pipeline {
                 bat 'npm run build'
             }
         }
-        stage('Docker Check') {
+       stage('Docker Check') {
     steps {
-        bat 'docker --version'
-        bat 'docker compose version'
+        bat '"C:\\Users\\Cyborg\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" --version'
+        bat '"C:\\Users\\Cyborg\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose version'
     }
 }
     }
